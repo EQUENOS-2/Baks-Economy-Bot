@@ -1,1 +1,1 @@
-worker: python cog_axis.py
+worker: python cogs_axis.py
