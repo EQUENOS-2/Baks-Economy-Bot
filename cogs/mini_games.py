@@ -492,6 +492,9 @@ class economy(commands.Cog):
                 ttt = await ctx.send(embed=table)
 
                 playing = my_hand.value < 21
+                if not playing and my_hand.value == 21:
+                    bet = int(bet * 1.5)
+                msg = 0
                 while playing:
                     msg = await read_message(ctx.channel, ctx.author, 60, self.client)
                     if msg is None:
@@ -505,9 +508,12 @@ class economy(commands.Cog):
                             table.add_field(name="**Рука дилера**", value=f"{dealer_hand}\nОчков: {dealer_hand.value}")
                             await ttt.edit(embed=table)
                         elif move == "double down":
-                            my_hand.add_card(d.take_card())
-                            bet *= 2
-                            playing = False
+                            if bal >= bet * 2:
+                                my_hand.add_card(d.take_card())
+                                bet *= 2
+                                playing = False
+                            else:
+                                await msg.add_reaction("❌")
                         elif move == "stand":
                             playing = False
                         
