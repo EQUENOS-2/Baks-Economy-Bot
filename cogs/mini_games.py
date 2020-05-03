@@ -190,8 +190,6 @@ class economy(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         print(">> Mini games cog is loaded")
-        global deck
-        deck = get_deck(self.client)
 
     @commands.cooldown(5, 300, commands.BucketType.member)
     @commands.command(aliases=["r"])
@@ -475,7 +473,7 @@ class economy(commands.Cog):
                 await ctx.send(embed=reply)
             
             else:
-                d = Deck(deck)
+                d = Deck(get_deck(self.client))
                 my_hand, dealer_hand = Hand(), Hand()
                 my_hand.add_card(d.take_card())
                 my_hand.add_card(d.take_card())
