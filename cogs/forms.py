@@ -28,6 +28,27 @@ def attachments_to_links(message, quote=False, header="Вложение"):
             pos += 1
         return out
 
+def text_from_embed(embed):
+    out = ""
+    auth_desc = str(embed.author.name)
+    if auth_desc != "Embed.Empty":
+        out = auth_desc + "\n"
+    title = str(embed.title)
+    if title != "Embed.Empty":
+        out += title + "\n"
+    desc = str(embed.description)
+    if desc != "Embed.Empty":
+        out += desc + "\n"
+    
+    for field in embed.fields:
+        out += f"{field.name}\n{field.value}\n"
+    
+    footer = str(embed.footer)
+    if footer != "EmbedProxy()":
+        out += embed.footer.text
+    
+    return out.strip()
+
 async def read_message(channel, user, t_out, client):
     try:
         msg = await client.wait_for(
@@ -51,6 +72,13 @@ async def try_send(channel_or_user, content=None, embed=None):
         return await channel_or_user.send(content=content, embed=embed)
     except Exception:
         return None
+
+async def get_message(channel, msg_id):
+    try:
+        msg = await channel.fetch_message(msg_id)
+    except Exception:
+        msg = None
+    return msg
 
 class forms(commands.Cog):
     def __init__(self, client):
@@ -189,7 +217,7 @@ class forms(commands.Cog):
         await ctx.send(embed=reply)
 
     @commands.command(aliases=["send-form"])
-    async def send_from(self, ctx):
+    async def send_form(self, ctx):
         collection = db["forms"]
         result = collection.find_one(
             {"_id": ctx.guild.id}
@@ -400,6 +428,55 @@ class forms(commands.Cog):
             )
             reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
             await ctx.send(embed=reply)
+
+    @commands.command(aliases=["tfe", "embed-text", "et"])
+    async def embed_text(self, ctx, _id, channel_search):
+        channel = detect.channel(ctx.guild, channel_search)
+        if channel is None:
+            reply = discord.Embed(
+                title="💢 Упс",
+                description=f"Вы ввели {channel_search}, подразумевая канал, но он не был найден.",
+                color=discord.Color.dark_red()
+            )
+            reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+            await ctx.send(embed=reply)
+            
+        else:
+            if not _id.isdigit():
+                message = None
+            else:
+                message = await get_message(channel, int(_id))
+            if message is None:
+                reply = discord.Embed(
+                    title="❌ Ошибка",
+                    description=f"В канале <#{channel.id}> нет сообщения с ID `{_id}`",
+                    color=discord.Color.dark_red()
+                )
+                reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                await ctx.send(embed=reply)
+            
+            else:
+                embeds = message.embeds
+                if len(embeds) == 0:
+                    reply = discord.Embed(
+                        title="❌ Ошибка",
+                        description=f"У этого сообщения нет эмбедов",
+                        color=discord.Color.dark_red()
+                    )
+                    reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                    await ctx.send(embed=reply)
+                
+                else:
+                    embed = embeds[0]
+                    text = text_from_embed(embed)
+                    if len(text) > 2000:
+                        with open("embed_text.txt", "w", encoding="utf8") as etf:
+                            etf.write(text)
+                        with open("embed_text.txt", "rb") as temp_file:
+                            await ctx.send(file=discord.File(temp_file))
+                        os.remove("embed_text.txt")
+                    else:
+                        await ctx.send(text)
 
     #======= Errors =========
     @add_field.error
