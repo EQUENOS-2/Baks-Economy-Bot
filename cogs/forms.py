@@ -231,7 +231,7 @@ class forms(commands.Cog):
                 else:
                     await talk_channel.send(embed=reply)
 
-                msg = await read_message(talk_channel, ctx.author, 120, self.client)
+                msg = await read_message(talk_channel, ctx.author, 300, self.client)
                 if msg is None:
                     completed = False
                     break
