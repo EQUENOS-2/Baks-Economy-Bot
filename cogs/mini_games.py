@@ -58,6 +58,17 @@ def get_deck(client):
             out.append((str(e), card_val(e.name)))
     return out
 
+def is_command(text, prefix, client):
+    out = False
+    _1st_word = text.split(maxsplit=1)[0]
+    if _1st_word.startswith(prefix):
+        _1st_word = _1st_word[len(prefix):]
+        for cmd in client.commands:
+            if _1st_word == cmd.name or _1st_word in cmd.aliases:
+                out = True
+                break
+    return out
+
 async def read_message(channel, user, t_out, client):
     try:
         msg = await client.wait_for("message", check=lambda message: user.id==message.author.id and channel.id==message.channel.id, timeout=t_out)
@@ -174,13 +185,21 @@ class Hand:
     def __init__(self):
         self.cards = []
         self.value = 0
+        self.values = []
     
     def __str__(self):
         return " ".join(self.cards)
     
     def add_card(self, paired_card):
         self.cards.append(paired_card[0])
+        self.values.append(paired_card[1])
         self.value += paired_card[1]
+        if self.value > 21:
+            for i in range(len(self.values)):
+                if self.values[i] == 11:
+                    self.values[i] = 1
+                    self.value -= 10
+                    break
 
 class economy(commands.Cog):
     def __init__(self, client):
@@ -497,6 +516,10 @@ class economy(commands.Cog):
                     msg = await read_message(ctx.channel, ctx.author, 60, self.client)
                     if msg is None:
                         playing = False
+                    elif is_command(msg.content, ctx.prefix, self.client):
+                        await ttt.delete()
+                        msg = None
+                        playing = False
                     else:
                         move = msg.content.lower()
                         if move == "hit":
@@ -511,7 +534,10 @@ class economy(commands.Cog):
                                 bet *= 2
                                 playing = False
                             else:
-                                await msg.add_reaction("❌")
+                                try:
+                                    await msg.add_reaction("❌")
+                                except Exception:
+                                    pass
                         elif move == "stand":
                             playing = False
                         

@@ -543,5 +543,21 @@ class forms(commands.Cog):
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
             await ctx.send(embed = reply)
 
+    @embed_text.error
+    async def embed_text_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{cmd}`",
+                description = (
+                    f"**Описание:** копирует весь текст с эмбеда и отправляет Вам\n"
+                    f'**Использование:** `{p}{cmd} ID_сообщения #канал`\n'
+                    f"**Пример:** `{p}{cmd} {ctx.message.id} #{ctx.channel.name}`\n"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
 def setup(client):
     client.add_cog(forms(client))
