@@ -9,15 +9,20 @@ from box.db_worker import cluster
 #========== Variables ==========
 db = cluster["guilds"]
 
+mass_dm_errors = {}
+
 #========== Functions ==========
 from functions import has_permissions, detect
 
-async def try_send(channel_or_user, content=None, embed=None):
+async def try_send_and_count(channel_or_user, message_id, content=None, embed=None):
     try:
         await channel_or_user.send(content=content, embed=embed)
-        return True
     except Exception:
-        return False
+        global mass_dm_errors
+        if message_id not in mass_dm_errors:
+            mass_dm_errors[message_id] = 1
+        else:
+            mass_dm_errors[message_id] += 1
 
 class utilities(commands.Cog):
     def __init__(self, client):
@@ -64,14 +69,19 @@ class utilities(commands.Cog):
                 paper.set_thumbnail(url=str(ctx.guild.icon_url))
 
                 total_targets = 0
-                error_targets = 0
                 await ctx.send("🕑 Пожалуйста, подождите...")
                 for member in ctx.guild.members:
                     if role in member.roles:
                         total_targets += 1
-                        was_sent = await try_send(member, embed=paper)
-                        if not was_sent:
-                            error_targets += 1
+                        self.client.loop.create_task(try_send_and_count(member, ctx.message.id, embed=paper))
+                
+                await ctx.send("🕑 Собираю данные...")
+
+                global mass_dm_errors
+                error_targets = mass_dm_errors.get(ctx.message.id, 0)
+                if ctx.message.id in mass_dm_errors:
+                    mass_dm_errors.pop(ctx.message.id)
+
                 reply = discord.Embed(
                     title="✅ Рассылка завершена",
                     description=(
