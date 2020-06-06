@@ -38,13 +38,15 @@ async def help(ctx, *, section=None):
         "settings": ["settings", "s", "настройки", "н"],
         "economy": ["economy", "e", "экономика", "э"],
         "games": ["games", "g", "игры", "и", "казино"],
-        "forms": ["forms", "f", "формы", "анкеты"]
+        "forms": ["forms", "f", "формы", "анкеты"],
+        "utils": ["utils", "utilities", "утилиты"]
     }
     titles = {
         "settings": "О настройках",
         "economy": "Об экономике",
         "games": "Об играх",
-        "forms": "Об анкете сервера"
+        "forms": "Об анкете сервера",
+        "utils": "О полезных командах"
     }
     if section is None:
         reply = discord.Embed(
@@ -55,6 +57,7 @@ async def help(ctx, *, section=None):
                 f"`{p}help economy` - экономика\n"
                 f"`{p}help games` - игры\n"
                 f"`{p}help forms` - форма/анкета\n"
+                f"`{p}help utils` - утилиты"
             ),
             color=ctx.guild.me.color
         )
