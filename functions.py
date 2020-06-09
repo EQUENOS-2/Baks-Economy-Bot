@@ -87,46 +87,13 @@ def try_int(string):
         return None
 
 
-def perms_for(role):
-    owned = {
-    "create_instant_invite": role.permissions.create_instant_invite,
-    "kick_members": role.permissions.kick_members,
-    "ban_members": role.permissions.ban_members,
-    "administrator": role.permissions.administrator,
-    "manage_channels": role.permissions.manage_channels,
-    "manage_roles": role.permissions.manage_roles,
-    "manage_guild": role.permissions.manage_guild,
-    "view_audit_log": role.permissions.view_audit_log,
-    "change_nickname": role.permissions.change_nickname,
-    "manage_nicknames": role.permissions.manage_nicknames,
-    "manage_webhooks": role.permissions.manage_webhooks,
-    "manage_messages": role.permissions.manage_messages,
-    "manage_emojis": role.permissions.manage_emojis,
-    "mention_everyone": role.permissions.mention_everyone
-    }
-    return owned
-
-
 def has_permissions(member, perm_array):
-    to_have = len(perm_array)
-    if member.id == member.guild.owner_id or member.id in owner_ids:
-        return True
-    else:
-        found_num = 0
-        found = []
-        for role in member.roles:
-            owned = perms_for(role)
-            if owned["administrator"]:
-                found_num = to_have
-            else:
-                for perm in perm_array:
-                    if not perm in found and owned[perm]:
-                        found.append(perm)
-                        found_num += 1
-            if found_num >= to_have:
-                break
-                    
-        return True if found_num >= to_have else False
+    perms_owned = dict(member.guild_permissions)
+    total_needed = len(perm_array)
+    for perm in perm_array:
+        if perms_owned[perm]:
+            total_needed -= 1
+    return total_needed == 0
 
 
 def has_roles(member, role_array):
@@ -139,6 +106,23 @@ def has_roles(member, role_array):
                 has_them = False
                 break
     return has_them
+
+
+def has_role_or_higher(member, role_or_id):
+    if has_permissions(member, ["administrator"]):
+        return True
+    else:
+        if "int" in str(type(role_or_id)):
+            role_or_id = member.guild.get_role(role_or_id)
+        if role_or_id is None:
+            return False
+        else:
+            has = False
+            for role in member.roles:
+                if role.position >= role_or_id.position:
+                    has = True
+                    break
+            return has
 
 
 class detect:
