@@ -12,7 +12,7 @@ db = cluster["guilds"]
 mass_dm_errors = {}
 
 #========== Functions ==========
-from functions import has_permissions, detect
+from functions import has_permissions, detect, has_role_or_higher
 
 def unwrap_isolation(text, s):
     length, wid, i = len(text), len(s), 0
@@ -179,12 +179,13 @@ class utilities(commands.Cog):
     @commands.cooldown(1, 1, commands.BucketType.member)
     @commands.command()
     async def embed(self, ctx, *, text_input):
-        if not has_permissions(ctx.author, ["administrator"]):
+        req_role_id = 688313470881759288
+        if not has_role_or_higher(ctx.author, req_role_id):
             reply = discord.Embed(
-                title="💢 Недостаточно прав",
+                title="💢 Нет роли",
                 description = (
-                    "Требуемые права:\n"
-                    "> Администратор"
+                    "Требуемые роли:\n"
+                    f"> <@&{req_role_id}>"
                 ),
                 color=discord.Color.dark_red()
             )
@@ -207,12 +208,13 @@ class utilities(commands.Cog):
     @commands.cooldown(1, 1, commands.BucketType.member)
     @commands.command()
     async def edit(self, ctx, _id, *, text_input):
-        if not has_permissions(ctx.author, ["administrator"]):
+        req_role_id = 688313470881759288
+        if not has_role_or_higher(ctx.author, req_role_id):
             reply = discord.Embed(
-                title="💢 Недостаточно прав",
+                title="💢 Нет роли",
                 description = (
-                    "Требуемые права:\n"
-                    "> Администратор"
+                    "Требуемые роли:\n"
+                    f"> <@&{req_role_id}>"
                 ),
                 color=discord.Color.dark_red()
             )
