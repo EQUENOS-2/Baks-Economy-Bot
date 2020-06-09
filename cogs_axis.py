@@ -11,7 +11,7 @@ from functions import visual_delta, owner_ids, find_alias
 client = commands.Bot(command_prefix="?")
 client.remove_command("help")
 
-token = str(os.environ.get('bot_token'))
+token = str(os.environ.get("bot_token"))
 
 #=========== Events ============
 @client.event
