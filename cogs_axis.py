@@ -101,51 +101,6 @@ async def on_command_error(ctx, error):
         )
         cool_notify.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
         await ctx.send(embed=cool_notify)
-    
-    elif isinstance(error, commands.MissingPermissions):
-        if ctx.author.id not in owner_ids:
-            reply = discord.Embed(
-                title="❌ Недостаточно прав",
-                description=f"**Необходимые права:**\n{display_perms(error.missing_perms)}",
-                color=discord.Color.dark_red()
-            )
-            reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
-            await ctx.send(embed=reply)
-        else:
-            try:
-                await ctx.reinvoke()
-            except Exception as e:
-                await on_command_error(ctx, e)
-    
-    elif isinstance(error, commands.MissingAnyRole):
-        if ctx.author.id not in owner_ids:
-            reply = discord.Embed(
-                title="❌ Нет нужной роли",
-                description=f"**Требуемые роли:**\n{quote_list([f'<@&{_id}>' for _id in error.missing_roles])}",
-                color=discord.Color.dark_red()
-            )
-            reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
-            await ctx.send(embed=reply)
-        else:
-            try:
-                await ctx.reinvoke()
-            except Exception as e:
-                await on_command_error(ctx, e)
-    
-    elif isinstance(error, commands.MissingRequiredArgument):
-        p = ctx.prefix
-        cmd = ctx.command
-        reply = discord.Embed(
-            title=f"📖 О команде `{cmd.name}`",
-            description=(
-                f"**Описание:** {cmd.help}\n"
-                f"**Использование:** `{p}{cmd.name} {cmd.brief}`\n"
-                f"**Пример:** `{p}{cmd.name} {cmd.usage}`\n\n"
-                f"{vis_aliases(cmd.aliases)}"
-            )
-        )
-        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
-        await ctx.send(embed=reply)
 
 #========== Extensions =========
 
