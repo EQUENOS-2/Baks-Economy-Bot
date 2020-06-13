@@ -12,7 +12,7 @@ db = cluster["guilds"]
 mass_dm_errors = {}
 
 #========== Functions ==========
-from functions import has_permissions, detect, has_role_or_higher
+from functions import has_permissions, detect, has_any_role, quote_list
 
 def unwrap_isolation(text, s):
     length, wid, i = len(text), len(s), 0
@@ -119,18 +119,16 @@ class utilities(commands.Cog):
     @commands.cooldown(1, 5, commands.BucketType.member)
     @commands.command(aliases=["dm-role", "mass-send", "role-dm", "dr"])
     async def dm_role(self, ctx, role_search, *, text):
-        if not has_permissions(ctx.author, ["administrator"]):
+        req_roles = [688313470881759288]
+        if not has_any_role(ctx.author, req_roles):
             reply = discord.Embed(
-                title="❌ Недостаточно прав",
-                description=(
-                    "**Необходимые права:**\n"
-                    f"> Администратор"
-                ),
+                title="❌ Нет нужной роли",
+                description=f"**Требуемые роли:**\n{quote_list([f'<@&{_id}>' for _id in req_roles])}",
                 color=discord.Color.dark_red()
             )
             reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
             await ctx.send(embed=reply)
-        
+
         else:
             role = detect.role(ctx.guild, role_search)
             if role is None:
@@ -179,19 +177,16 @@ class utilities(commands.Cog):
     @commands.cooldown(1, 1, commands.BucketType.member)
     @commands.command()
     async def embed(self, ctx, *, text_input):
-        req_role_id = 688313470881759288
-        if not has_role_or_higher(ctx.author, req_role_id):
+        req_roles = [688313470881759288]
+        if not has_any_role(ctx.author, req_roles):
             reply = discord.Embed(
-                title="💢 Нет роли",
-                description = (
-                    "Требуемые роли:\n"
-                    f"> <@&{req_role_id}>"
-                ),
+                title="❌ Нет нужной роли",
+                description=f"**Требуемые роли:**\n{quote_list([f'<@&{_id}>' for _id in req_roles])}",
                 color=discord.Color.dark_red()
             )
-            reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+            reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
             await ctx.send(embed=reply)
-        
+
         else:
             emb = embed_from_string(text_input)
             
@@ -208,59 +203,57 @@ class utilities(commands.Cog):
     @commands.cooldown(1, 1, commands.BucketType.member)
     @commands.command()
     async def edit(self, ctx, _id, *, text_input):
-        req_role_id = 688313470881759288
-        if not has_role_or_higher(ctx.author, req_role_id):
+        req_roles = [688313470881759288]
+        if not has_any_role(ctx.author, req_roles):
             reply = discord.Embed(
-                title="💢 Нет роли",
-                description = (
-                    "Требуемые роли:\n"
-                    f"> <@&{req_role_id}>"
-                ),
+                title="❌ Нет нужной роли",
+                description=f"**Требуемые роли:**\n{quote_list([f'<@&{_id}>' for _id in req_roles])}",
                 color=discord.Color.dark_red()
             )
-            reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+            reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
             await ctx.send(embed=reply)
-        
-        elif not _id.isdigit():
-            reply = discord.Embed(
-                title="❌ Ошибка",
-                description=f"ID должно состоять из цифр.\nВведено: {_id}",
-                color=discord.Color.dark_red()
-            )
-            reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
-            await ctx.send(embed=reply)
-        
+
         else:
-            message = await get_message(ctx.channel, int(_id))
-            if message is None:
+            if not _id.isdigit():
                 reply = discord.Embed(
-                    title="🔎 Сообщение не найдено",
-                    description=f"В этом канале нет сообщения с ID: `{_id}`"
-                )
-                reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
-                await ctx.send(embed=reply)
-            
-            elif message.author.id != self.client.user.id:
-                reply = discord.Embed(
-                    title="❌ Это не моё сообщение",
-                    description="Я не имею права редактировать чужие сообщения",
+                    title="❌ Ошибка",
+                    description=f"ID должно состоять из цифр.\nВведено: {_id}",
                     color=discord.Color.dark_red()
                 )
                 reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
                 await ctx.send(embed=reply)
             
             else:
-                emb = embed_from_string(text_input)
+                message = await get_message(ctx.channel, int(_id))
+                if message is None:
+                    reply = discord.Embed(
+                        title="🔎 Сообщение не найдено",
+                        description=f"В этом канале нет сообщения с ID: `{_id}`"
+                    )
+                    reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                    await ctx.send(embed=reply)
                 
-                await message.edit(embed=emb)
-                try:
-                    await ctx.author.send(f"{ctx.prefix}edit {_id} {antiformat(text_input)}")
-                except Exception:
-                    pass
-                try:
-                    await ctx.message.delete()
-                except Exception:
-                    pass
+                elif message.author.id != self.client.user.id:
+                    reply = discord.Embed(
+                        title="❌ Это не моё сообщение",
+                        description="Я не имею права редактировать чужие сообщения",
+                        color=discord.Color.dark_red()
+                    )
+                    reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
+                    await ctx.send(embed=reply)
+                
+                else:
+                    emb = embed_from_string(text_input)
+                    
+                    await message.edit(embed=emb)
+                    try:
+                        await ctx.author.send(f"{ctx.prefix}edit {_id} {antiformat(text_input)}")
+                    except Exception:
+                        pass
+                    try:
+                        await ctx.message.delete()
+                    except Exception:
+                        pass
 
     #======== Errors ===========
     @dm_role.error
