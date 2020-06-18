@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio, os
+import requests
 
 import pymongo
 from box.db_worker import cluster
@@ -95,9 +96,9 @@ async def get_message(channel, msg_id):
     except Exception:
         return None
 
-async def try_send_and_count(channel_or_user, message_id, content=None, embed=None):
+async def try_send_and_count(channel_or_user, message_id, content=None, embed=None, files=None):
     try:
-        await channel_or_user.send(content=content, embed=embed)
+        await channel_or_user.send(content=content, embed=embed, files=files)
     except Exception:
         global mass_dm_errors
         if message_id not in mass_dm_errors:
@@ -143,21 +144,18 @@ class utilities(commands.Cog):
             else:
                 atts = ctx.message.attachments
 
-                paper = discord.Embed(
-                    title=f"📢 Письмо от **{ctx.guild.name}** для **@{role.name}**",
-                    description=text,
-                    color=discord.Color.from_rgb(92, 249, 131)
-                )
-                paper.set_thumbnail(url=str(ctx.guild.icon_url))
-                if atts != []:
-                    paper.set_image(url=atts[0].url)
+                paper = f"📢 **{ctx.guild.name}**\n\n{text}"[:2000]
+                files = []
+                
+                for att in atts:
+                    files.append(await att.to_file())
 
                 total_targets = 0
                 await ctx.send("🕑 Пожалуйста, подождите...")
                 for member in ctx.guild.members:
                     if role in member.roles:
                         total_targets += 1
-                        self.client.loop.create_task(try_send_and_count(member, ctx.message.id, embed=paper))
+                        self.client.loop.create_task(try_send_and_count(member, ctx.message.id, paper, files=files))
                 
                 await ctx.send("🕑 Собираю данные...")
 
