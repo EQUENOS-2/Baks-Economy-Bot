@@ -141,12 +141,16 @@ class utilities(commands.Cog):
                 await ctx.send(embed=reply)
 
             else:
+                atts = ctx.message.attachments
+
                 paper = discord.Embed(
                     title=f"📢 Письмо от **{ctx.guild.name}** для **@{role.name}**",
                     description=text,
                     color=discord.Color.from_rgb(92, 249, 131)
                 )
                 paper.set_thumbnail(url=str(ctx.guild.icon_url))
+                if atts != []:
+                    paper.set_image(url=atts[0])
 
                 total_targets = 0
                 await ctx.send("🕑 Пожалуйста, подождите...")
