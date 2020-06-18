@@ -150,7 +150,7 @@ class utilities(commands.Cog):
                 )
                 paper.set_thumbnail(url=str(ctx.guild.icon_url))
                 if atts != []:
-                    paper.set_image(url=atts[0])
+                    paper.set_image(url=atts[0].url)
 
                 total_targets = 0
                 await ctx.send("🕑 Пожалуйста, подождите...")
