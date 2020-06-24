@@ -91,6 +91,27 @@ async def help(ctx, *, section=None):
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
 
+@commands.cooldown(1, 1, commands.BucketType.member)
+@client.command(aliases=["bot-stats", "bs", "bot-info", "bi"])
+async def stats(ctx):
+    total_members = 0
+    total_servers = 0
+    
+    for guild in client.guilds:
+        total_members += guild.member_count
+        total_servers += 1
+    
+    reply = discord.Embed(
+        title="🌍 Статистика бота",
+        description=(
+            f"**Всего серверов:** {total_servers} 🗂\n\n"
+            f"**Всего пользователей:** {total_members} 👥"
+        ),
+        color=discord.Color.blue()
+    )
+    reply.set_thumbnail(url=str(client.user.avatar_url))
+    await ctx.send(embed=reply)
+            
 #========== Errors ============
 @client.event
 async def on_command_error(ctx, error):
