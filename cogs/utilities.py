@@ -155,7 +155,7 @@ class utilities(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member):
         collection = db["msg_manip"]
-        result = collection.get(
+        result = collection.find_one(
             {"_id": member.guild.id},
             projection={"welcome_channel": True}
         )
