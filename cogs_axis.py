@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
+import failures
 import asyncio, os, datetime
 
 # import pymongo
@@ -14,6 +15,14 @@ token = str(os.environ.get("bot_token"))
 
 #========== Functions ===========
 from functions import display_perms, vis_aliases, visual_delta, owner_ids, find_alias, quote_list
+
+def has_instance(_list, _class):
+    has = False
+    for elem in _list:
+        if isinstance(elem, _class):
+            has = True
+            break
+    return has
 
 #=========== Events ============
 @client.event
@@ -111,7 +120,7 @@ async def stats(ctx):
     )
     reply.set_thumbnail(url=str(client.user.avatar_url))
     await ctx.send(embed=reply)
-            
+
 #========== Errors ============
 @client.event
 async def on_command_error(ctx, error):
@@ -122,6 +131,69 @@ async def on_command_error(ctx, error):
         )
         cool_notify.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
         await ctx.send(embed=cool_notify)
+    
+    elif isinstance(error, commands.BadArgument):
+        kw, search, rest = str(error).split(maxsplit=2)
+        kw = kw.lower()
+        del rest
+        translations = {
+            "user": f"По запросу {search} не было найдено пользователей.",
+            "member": f"По запросу {search} не было найдено участников.",
+            "role": f"По запросу {search} не было найдено ролей.",
+            "channel": f"По запросу {search} не было найдено каналов."
+        }
+        desc = translations.get(kw, f"Введённый аргумент {search} не соответствует требуемому формату.")
+
+        reply = discord.Embed(
+            title="❌ Неверный аргумент",
+            description=desc,
+            color=discord.Color.dark_red()
+        )
+        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
+    
+    elif isinstance(error, commands.CheckAnyFailure):
+        if ctx.author.id not in owner_ids:
+            if has_instance(error.errors, failures.IsNotModerator):
+                reply = discord.Embed(
+                    title="❌ Недостаточно прав",
+                    description=f"Необходимые права:\n> Модератор",
+                    color=discord.Color.dark_red()
+                )
+                reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+                await ctx.send(embed=reply)
+            elif len(error.errors) > 0:
+                await on_command_error(ctx, error.errors[0])
+            
+        else:
+            try:
+                await ctx.reinvoke()
+            except Exception as e:
+                await on_command_error(ctx, e)
+
+    elif isinstance(error, commands.MissingPermissions):
+        if ctx.author.id not in owner_ids:
+            reply = discord.Embed(
+                title="❌ Недостаточно прав",
+                description=f"Необходимые права:\n{display_perms(error.missing_perms)}",
+                color=discord.Color.dark_red()
+            )
+            reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+            await ctx.send(embed=reply)
+        else:
+            try:
+                await ctx.reinvoke()
+            except Exception as e:
+                await on_command_error(ctx, e)
+
+    elif isinstance(error, commands.CommandNotFound):
+        pass
+    
+    elif isinstance(error, commands.MissingRequiredArgument):
+        pass
+
+    else:
+        print(error)
 
 #========== Extensions =========
 

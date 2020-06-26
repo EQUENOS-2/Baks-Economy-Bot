@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
+import failures
 import asyncio, os, datetime, json
 
 import pymongo
@@ -25,6 +26,23 @@ def save(data, filename):
     with open(filename, "w", encoding="utf8") as fff:
         json.dump(data, fff)
 
+def is_moderator():
+    def predicate(ctx):
+        mod_role_ids = [688313470881759288]
+        author_role_ids = [r.id for r in ctx.author.roles]
+        has = False
+        for role_id in mod_role_ids:
+            if role_id in author_role_ids:
+                has = True
+                break
+        if has:
+            return True
+        else:
+            raise failures.IsNotModerator()
+    return commands.check(predicate)
+
+#============= Cog itself ================
+
 class settings(commands.Cog):
     def __init__(self, client):
         self.client = client
@@ -39,29 +57,30 @@ class settings(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         trig_data = load(trigger_file, {})
-        guild_id = message.guild.id
-        
-        if f"{guild_id}" not in trig_data:
-            collection = db["msg_manip"]
-            result = collection.find_one(
-                {"_id": guild_id}
-            )
-            trig = get_field(result, "trigger")
-            rep = get_field(result, "reply")
-            trig_data.update([(f"{guild_id}", {"trigger": trig, "reply": rep})])
+        if message.guild is not None:
+            guild_id = message.guild.id
+            
+            if f"{guild_id}" not in trig_data:
+                collection = db["msg_manip"]
+                result = collection.find_one(
+                    {"_id": guild_id}
+                )
+                trig = get_field(result, "trigger")
+                rep = get_field(result, "reply")
+                trig_data.update([(f"{guild_id}", {"trigger": trig, "reply": rep})])
 
-            save(trig_data, trigger_file)
-        else:
-            trig = trig_data[f"{guild_id}"]["trigger"]
-            rep = trig_data[f"{guild_id}"]["reply"]
-        
-        text = message.content.lower()
-        if trig is not None and rep is not None and trig in text:
-            reply = discord.Embed(
-                description=rep,
-                color=message.author.color
-            )
-            await message.channel.send(embed=reply)
+                save(trig_data, trigger_file)
+            else:
+                trig = trig_data[f"{guild_id}"]["trigger"]
+                rep = trig_data[f"{guild_id}"]["reply"]
+            
+            text = message.content.lower()
+            if trig is not None and rep is not None and trig in text:
+                reply = discord.Embed(
+                    description=rep,
+                    color=message.author.color
+                )
+                await message.channel.send(embed=reply)
 
     #========= Commands ===========
     @commands.cooldown(1, 3, commands.BucketType.member)
@@ -336,7 +355,63 @@ class settings(commands.Cog):
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
 
-    #======== Errors =========
+    # +---------------------------------------+
+    # |            Group: welcome             |
+    # +---------------------------------------+
+    @commands.check_any(
+        commands.has_permissions(administrator=True),
+        is_moderator() )
+    @commands.group()
+    async def welcome(self, ctx):
+        p = ctx.prefix
+        if ctx.invoked_subcommand is None:
+            reply = discord.Embed(
+                title="❌ Ошибка",
+                description=(
+                    "Укажите одну их этих категорий:\n"
+                    f"> `{p}{ctx.command} channel`\n"
+                    f"> `{p}{ctx.command} message`\n"
+                ),
+                color=discord.Color.dark_red()
+            )
+            reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+            await ctx.send(embed=reply)
+        
+    @welcome.command()
+    async def channel(self, ctx, *, channel: discord.TextChannel):
+        collection = db["msg_manip"]
+        collection.update_one(
+            {"_id": ctx.guild.id},
+            {"$set": {"welcome_channel": channel.id}},
+            upsert=True
+        )
+        reply = discord.Embed(
+            title="✅ Выполнено",
+            description=f"Теперь <#{channel.id}> - канал для приветствий.",
+            color=discord.Color.dark_green()
+        )
+        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
+    
+    @welcome.command()
+    async def message(self, ctx, *, text):
+        collection = db["msg_manip"]
+        collection.update_one(
+            {"_id": ctx.guild.id},
+            {"$set": {"welcome_message": text}},
+            upsert=True
+        )
+        reply = discord.Embed(
+            title="✅ Выполнено",
+            description=f"**Новое приветственное сообщение:**\n{text}",
+            color=discord.Color.dark_green()
+        )
+        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
+
+    # +---------------------------------------+
+    # |                Errors                 |
+    # +---------------------------------------+
     #@master_role.error
     async def master_role_error(self, ctx, error):
         if isinstance(error, commands.MissingRequiredArgument):
@@ -414,6 +489,41 @@ class settings(commands.Cog):
                     f'**Использование:** `{p}{cmd} текст`\n'
                     f"**Отключение:** `{p}{cmd} delete`\n"
                     f"**Пример:** `{p}{cmd} Здравствуй`\n"
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+
+    @channel.error
+    async def welcome_channel_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            gr = ctx.command.parent
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{gr} {cmd}`",
+                description = (
+                    f"**Описание:** настраивает канал для приветствий\n"
+                    f'**Использование:** `{p}{gr} {cmd} #канал`\n'
+                )
+            )
+            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
+            await ctx.send(embed = reply)
+        
+    @message.error
+    async def welcome_message_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            p = ctx.prefix
+            cmd = ctx.command.name
+            gr = ctx.command.parent
+            reply = discord.Embed(
+                title = f"❓ Об аргументах `{p}{gr} {cmd}`",
+                description = (
+                    f"**Описание:** настраивает приветственное сообщение\n"
+                    f'**Использование:** `{p}{gr} {cmd} текст`\n'
+                    "**Переменные:** `{user}` - имя пользователя\n"
+                    "> `{server}` - название сервера\n"
+                    "> `{member_count}` - численность сервера"
                 )
             )
             reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")

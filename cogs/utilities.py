@@ -157,11 +157,15 @@ class utilities(commands.Cog):
         collection = db["msg_manip"]
         result = collection.find_one(
             {"_id": member.guild.id},
-            projection={"welcome_channel": True}
+            projection={
+                "welcome_channel": True,
+                "welcome_message": True
+            }
         )
         if result is None:
             result = {}
         channel = member.guild.get_channel( result.get("welcome_channel", 0) )
+        message = result.get("welcome_message")
 
         if channel is not None:
             path = f"images/{member.id}.png"
@@ -170,10 +174,19 @@ class utilities(commands.Cog):
             wc.write((960, 930), wc.name, 150, (40, 40, 40))
             wc.write((960, 160), str(wc.count), 150, (40, 40, 40))
             wc.save_as(path)
+
+            message = message.replace("{member_count}", str(wc.count))
+            message = message.replace("{user}", antiformat(wc.name))
+            message = message.replace("{server}", str(member.guild.name))
             del wc
 
             _file = discord.File(path, f"{member.id}.png")
-            await channel.send(str(member.mention), file=_file)
+            wemb = discord.Embed(
+                description=message,
+                color=member.guild.me.color
+            )
+            wemb.set_image(url=f"attachment://{_file.filename}")
+            await channel.send(str(member.mention), embed=wemb, file=_file)
             del _file
             os.remove(path)
 
