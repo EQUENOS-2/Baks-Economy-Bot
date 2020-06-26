@@ -3,6 +3,8 @@ from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio, os
 import requests
+from PIL import Image, ImageDraw, ImageFont
+from io import BytesIO
 
 import pymongo
 from box.db_worker import cluster
@@ -106,6 +108,40 @@ async def try_send_and_count(channel_or_user, message_id, content=None, embed=No
         else:
             mass_dm_errors[message_id] += 1
 
+class Welcome_card:
+    def __init__(self, member):
+        self.name = str(member)
+        self.count = member.guild.member_count
+        self.avatar_url = member.avatar_url
+        self.bg = Image.open("images/welcome_card.png")
+        self.draw = None
+        self.font = None
+
+    def paste_avatar(self, ulc, width):
+        r = requests.get(self.avatar_url)
+        avatar = Image.open( BytesIO(r.content ) ).resize((width, width))
+
+        mask = Image.new('L', (width, width), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0) + (width, width), fill=255)
+
+        self.bg.paste(avatar, (*ulc, ulc[0] + width, ulc[1] + width), mask)
+    
+    def write(self, center, text, font_size, fill=None):
+        if self.font is None:
+            self.font = ImageFont.truetype("fonts/brawl_stars.ttf", size=font_size, encoding="utf-8")
+        else:
+            self.font.size = font_size
+        if self.draw is None:
+            self.draw = ImageDraw.Draw(self.bg)
+        
+        tsize = self.draw.textsize(text, font=self.font)
+        tulc = (center[0] - tsize[0] // 2, center[1] - tsize[1] // 2)
+        self.draw.text(tulc, text, font=self.font, fill=fill)
+    
+    def save_as(self, path, _format="PNG"):
+        self.bg.save(path, _format)
+
 
 class utilities(commands.Cog):
     def __init__(self, client):
@@ -115,6 +151,31 @@ class utilities(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         print(">> Utilities cog is loaded")
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        collection = db["msg_manip"]
+        result = collection.get(
+            {"_id": member.guild.id},
+            projection={"welcome_channel": True}
+        )
+        if result is None:
+            result = {}
+        channel = member.guild.get_channel( result.get("welcome_channel", 0) )
+
+        if channel is not None:
+            path = f"images/{member.id}.png"
+            wc = Welcome_card(member)
+            wc.paste_avatar((714, 294), 490)
+            wc.write((960, 930), wc.name, 150, (40, 40, 40))
+            wc.write((960, 160), str(wc.count), 150, (40, 40, 40))
+            wc.save_as(path)
+            del wc
+
+            _file = discord.File(path, f"{member.id}.png")
+            await channel.send(str(member.mention), file=_file)
+            del _file
+            os.remove(path)
 
     #========= Commands ==========
     @commands.cooldown(1, 5, commands.BucketType.member)
