@@ -129,7 +129,7 @@ class Welcome_card:
     
     def write(self, center, text, font_size, fill=None):
         if self.font is None:
-            self.font = ImageFont.truetype("fonts/brawl_stars.ttf", size=font_size, encoding="utf-8")
+            self.font = ImageFont.truetype("fonts/vida33pro.otf", size=font_size, encoding="utf-8")
         else:
             self.font.size = font_size
         if self.draw is None:
@@ -170,9 +170,11 @@ class utilities(commands.Cog):
         if channel is not None:
             path = f"images/{member.id}.png"
             wc = Welcome_card(member)
-            wc.paste_avatar((714, 294), 490)
-            wc.write((960, 930), wc.name, 150, (40, 40, 40))
-            wc.write((960, 160), str(wc.count), 150, (40, 40, 40))
+            wc.paste_avatar((178, 73), 124)
+            wc.write((242, 235), wc.name, 37, (255, 108, 0))
+            wc.write((240, 233), wc.name, 37)
+            wc.write((242, 32), str(wc.count), 37, (255, 108, 0))
+            wc.write((240, 30), str(wc.count), 37)
             wc.save_as(path)
 
             message = message.replace("{member_count}", str(wc.count))
