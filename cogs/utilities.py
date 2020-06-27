@@ -15,7 +15,7 @@ db = cluster["guilds"]
 mass_dm_errors = {}
 
 #========== Functions ==========
-from functions import has_permissions, detect, has_any_role, quote_list
+from functions import has_permissions, detect, has_any_role, quote_list, antiformat
 
 def unwrap_isolation(text, s):
     length, wid, i = len(text), len(s), 0
@@ -60,16 +60,6 @@ def color_from_string(_color):
             _color = colors[_color]
     return _color
 
-def antiformat(text):
-    alph = "qwertyuiopasdfghjklzxcvbnm1234567890 \n"
-    out = ""
-    for s in text:
-        if s.lower() not in alph:
-            out += "\\" + s
-        else:
-            out += s
-    return out
-
 def embed_from_string(text_input):
     # Carving logical parts
     _title = unwrap_isolation(text_input, "==")
@@ -77,6 +67,8 @@ def embed_from_string(text_input):
     _color = unwrap_isolation(text_input, "##")
     _image_url = unwrap_isolation(text_input, "&&")
     _thumb_url = unwrap_isolation(text_input, "++")
+    _footer_url = unwrap_isolation(text_input, ";;")
+    _footer_text = unwrap_isolation(text_input, "::")
     # Interpreting some values
     _color = color_from_string(_color)
 
@@ -89,6 +81,8 @@ def embed_from_string(text_input):
         emb.set_image(url=_image_url)
     if _thumb_url != "":
         emb.set_thumbnail(url=_thumb_url)
+    if _footer_text != "" or _footer_url != "":
+        emb.set_footer(text=_footer_text, icon_url=_footer_url)
     
     return emb
 
@@ -360,11 +354,13 @@ class utilities(commands.Cog):
                 description = (
                     "**Описание:** создаёт рамку с заголовком, текстом, картинкой и т.п.\n"
                     "Что нужно писать, чтобы создавать разные части рамки:\n"
-                    "> `==Заголовок==` - задаёт заголовок\n"
-                    "> `--Текст--` - задаёт текстовый блок\n"
-                    "> `##цвет##` - задаёт цвет (см. ниже)\n"
-                    "> `&&url_картинки&&` - задаёт большую картинку\n"
-                    "> `++url_картинки++` - задаёт маленькую картинку\n"
+                    "> `==Заголовок==` - заголовок\n"
+                    "> `--Текст--` - текстовый блок\n"
+                    "> `##цвет##` - цвет (см. ниже)\n"
+                    "> `&&url_картинки&&` - большая картинка\n"
+                    "> `++url_картинки++` - маленькая картинка\n"
+                    "> `;;url_картинки;;` - иконка футера\n"
+                    "> `::Текст::` - текст футера\n"
                     "**О цвете:** цвет может быть как из списка, так и из параметров RGB\n"
                     "В RGB формате между `##` должны идти 3 числа через запятую, например `##23, 123, 123##`\n"
                     "Список цветов: `red, dark_red, blue, dark_blue, green, dark_green, gold, teal, magenta, purple, blurple, orange, white, black`\n"

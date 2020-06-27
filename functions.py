@@ -38,6 +38,17 @@ perms_tr = {
 }
 
 
+def antiformat(text):
+    formers = "~`*_|>"
+    out = ""
+    for s in text:
+        if s in formers:
+            out += "\\" + s
+        else:
+            out += s
+    return out
+
+
 def quote_list(_list):
     return "\n".join([f"> {elem}" for elem in _list])
 
