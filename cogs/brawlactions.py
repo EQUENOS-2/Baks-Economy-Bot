@@ -10,12 +10,12 @@ from random import choice
 #       Connecting to Brawl Stars API          |
 #----------------------------------------------+
 brawl_token = str(os.environ.get("brawl_token"))
-brawl = brawlstats.Client(brawl_token)
+brawl = None#brawlstats.Client(brawl_token)
 
 #----------------------------------------------+
 #                 Constants                    |
 #----------------------------------------------+
-from functions import bscolors, antiformat as anf
+from functions import bscolors, antiformat as anf, owner_ids
 from custom_emojis import *
 emj = Emj()
 
@@ -38,6 +38,15 @@ class brawlactions(commands.Cog):
     #----------------------------------------------+
     #                  Commands                    |
     #----------------------------------------------+
+    @commands.command()
+    async def test(self, ctx):
+        if ctx.author.id in owner_ids:
+            try:
+                b = brawlstats.Client(brawl_token)
+            except Exception as e:
+                await ctx.send(str(e))
+
+
     @commands.cooldown(1, 360, commands.BucketType.member)
     @commands.command()
     async def verify(self, ctx):
