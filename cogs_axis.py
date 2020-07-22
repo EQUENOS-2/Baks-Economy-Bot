@@ -199,6 +199,9 @@ async def on_command_error(ctx, error):
 
 for file_name in os.listdir("./cogs"):
     if file_name.endswith(".py"):
-        client.load_extension(f"cogs.{file_name[:-3]}")
+        try:
+            client.load_extension(f"cogs.{file_name[:-3]}")
+        except Exception:
+            pass
 
 client.run(token)
