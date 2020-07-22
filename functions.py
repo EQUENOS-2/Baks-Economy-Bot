@@ -1,3 +1,18 @@
+import failures
+import discord
+from discord.ext import commands
+from pymongo import MongoClient
+import os
+
+
+app_string = str(os.environ.get('cluster_string'))
+cluster = MongoClient(app_string)
+db = cluster["guilds"]
+
+
+#-------------------------------------+
+#             Constants               |
+#-------------------------------------+
 owner_ids = [301295716066787332]
 
 
@@ -38,10 +53,167 @@ perms_tr = {
 }
 
 
+bscolors = {
+    "0xffffffff": "белый",
+    "0xffa2e3fe": "светло-голубой",
+    "0xff4ddba2": "изумрудный",
+    "0xffff9727": "оранжевый",
+    "0xfff9775d": "кремовый красный",
+    "0xfff05637": "красный",
+    "0xfff9c908": "жёлтый",
+    "0xffffce89": "бежевый",
+    "0xffa8e132": "зелёный",
+    "0xff1ba5f5": "синий",
+    "0xffff8afb": "розовый",
+    "0xffcb5aff": "фиолетовый"
+}
+
+
+#-------------------------------------+
+#           Database Models           |
+#-------------------------------------+
+class ServerConfig:
+    def __init__(self, _id: int, projection=None):
+        collection = db["config"]
+        result = collection.find_one({"_id": _id}, projection=projection)
+        if result is None:
+            result = {}
+        
+        self.id = _id
+        self.mod_roles = result.get("mod_roles", [])
+        self.log_channel = result.get("log_channel")
+    # Moderator role manipulators
+    def add_mod_role(self, role_id: int):
+        collection = db["config"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$addToSet": {"mod_roles": role_id}},
+            upsert=True
+        )
+    
+    def remove_mod_role(self, role_id):
+        collection = db["config"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$pull": {"mod_roles": { "$in": [role_id] }}}
+        )
+    
+    def clear_mod_roles(self):
+        collection = db["config"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$unset": {"mod_roles": ""}}
+        )
+    # Log channel manipulators
+    def set_log_channel(self, channel_id):
+        collection = db["config"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$set": {"log_channel": channel_id}},
+            upsert=True
+        )
+
+    def unset_log_channel(self):
+        collection = db["config"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$unset": {"log_channel": ""}}
+        )
+
+
+class BrawlDiscordList:
+    def __init__(self):
+        pass
+
+    def contains_tag(self, tag: str):
+        collection = db["brawlstars_tags"]
+        result = collection.find_one({"tag": tag})
+        return False if result is None else True
+    
+    def contains_id(self, _id: int):
+        collection = db["brawlstars_tags"]
+        result = collection.find_one({"_id": _id, "tag": {"$exists": True}})
+        return False if result is None else True
+
+    def link_together(self, _id: int, tag: str):
+        collection = db["brawlstars_tags"]
+        collection.update_one(
+            {"_id": _id},
+            {"$set": {"tag": tag}},
+            upsert=True
+        )
+
+
+class BrawlDiscordUser:
+    def __init__(self, user_id: int):
+        collection = db["brawlstars_tags"]
+        result = collection.find_one({"_id": user_id})
+        if result is None:
+            result = {}
+        
+        self.id = user_id
+        self.tag = result.get("tag")
+    
+    def link_with(self, tag: str):
+        collection = db["brawlstars_tags"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$set": {"tag": tag}},
+            upsert=True
+        )
+
+    def unlink(self):
+        collection = db["brawlstars_tags"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$unset": {"tag": ""}}
+        )
+
+
+class Member:
+    def __init__(self, _id: int):
+        self.id = _id
+
+#-------------------------------------+
+#            Custom Checks            |
+#-------------------------------------+
+def is_moderator():
+    def predicate(ctx):
+        server = ServerConfig(ctx.guild.id)
+        mod_role_ids = server.mod_roles
+        author_role_ids = [r.id for r in ctx.author.roles]
+        has = False
+        for role_id in mod_role_ids:
+            if role_id in author_role_ids:
+                has = True
+                break
+        if has:
+            return True
+        else:
+            raise failures.IsNotModerator()
+    return commands.check(predicate)
+
+#-------------------------------------+
+#           Other functions           |
+#-------------------------------------+
+def timeout_embed(timeout, reciever):
+    if timeout % 10 == 1:
+        timeword = "секунды"
+    else:
+        timeword = "секунд"
+    reply = discord.Embed(
+        title="🕑 Истекло время ожидания",
+        description=f"{antiformat(reciever)}, Вы не отвечали больше {timeout} {timeword}.",
+        color=discord.Color.blurple()
+    )
+    reply.set_footer(text=str(reciever), icon_url=reciever.avatar_url)
+    return reply
+
+
 def antiformat(text):
     formers = "~`*_|>"
     out = ""
-    for s in text:
+    for s in str(text):
         if s in formers:
             out += "\\" + s
         else:
