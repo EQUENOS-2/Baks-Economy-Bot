@@ -4,5 +4,6 @@ pymongo
 dnspython
 pillow
 requests
+brawlstats
 Pymoe
 pip
