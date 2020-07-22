@@ -5,6 +5,5 @@ dnspython
 pillow
 requests
 brawlstats
-git+https://github.com/SharpBit/brawlstats@development
 Pymoe
 pip
