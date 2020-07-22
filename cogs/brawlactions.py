@@ -10,7 +10,11 @@ from random import choice
 #       Connecting to Brawl Stars API          |
 #----------------------------------------------+
 brawl_token = str(os.environ.get("brawl_token"))
-brawl = None#brawlstats.Client(brawl_token)
+brawl = None
+try:
+    brawl = brawlstats.Client(brawl_token)
+except Exception:
+    pass
 
 #----------------------------------------------+
 #                 Constants                    |
@@ -42,7 +46,7 @@ class brawlactions(commands.Cog):
     async def test(self, ctx):
         if ctx.author.id in owner_ids:
             try:
-                b = brawlstats.Client(brawl_token)
+                brawlstats.Client(brawl_token)
             except Exception as e:
                 await ctx.send(str(e))
 
