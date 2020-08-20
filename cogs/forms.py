@@ -4,7 +4,7 @@ from discord.ext.commands import Bot
 import asyncio, os
 
 import pymongo
-from box.db_worker import cluster
+from help.db_worker import cluster
 
 #========== Variables ==========
 db = cluster["guilds"]
@@ -90,7 +90,12 @@ class forms(commands.Cog):
         print(">> Froms cog is loaded")
 
     #========= Commands ==========
-    @commands.command(aliases=["add-field", "add-question", "af"])
+    @commands.command(
+        aliases=["add-field", "add-question", "af"],
+        description="добавляет вопрос в анкету (форму) сервера",
+        usage="Заголовок",
+        brief="Возраст"
+    )
     async def add_field(self, ctx, *, name):
         pr = ctx.prefix
         if not has_permissions(ctx.author, ["administrator"]):
@@ -137,7 +142,13 @@ class forms(commands.Cog):
                 reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
                 await ctx.send(embed=reply)
 
-    @commands.command(aliases=["reply-channel", "rc", "redirect", "redirect-channel"])
+
+    @commands.command(
+        aliases=["reply-channel", "rc", "redirect", "redirect-channel"],
+        description="настраивает канал, в который будут отправляться заоплненные формы (обязателен для работы анкеты)",
+        usage="#канал",
+        brief="#список-заявок"
+    )
     async def reply_channel(self, ctx, channel_name):
         pr = ctx.prefix
         if not has_permissions(ctx.author, ["administrator"]):
@@ -187,6 +198,7 @@ class forms(commands.Cog):
                 reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
                 await ctx.send(embed=reply)
 
+
     @commands.command(aliases=["view-form", "vf"])
     async def view_form(self, ctx):
         pr = ctx.prefix
@@ -215,6 +227,7 @@ class forms(commands.Cog):
                 reply.add_field(name=f"**{q}**", value=f"> {fields[q]}", inline=False)
 
         await ctx.send(embed=reply)
+
 
     @commands.command(aliases=["send-form"])
     async def send_form(self, ctx):
@@ -293,7 +306,12 @@ class forms(commands.Cog):
                 else:
                     await channel.send(embed=answer)
 
-    @commands.command()
+
+    @commands.command(
+        description="переименовывает заголовок вопроса",
+        usage="Старый заголовок",
+        brief="Возпаст"
+    )
     async def rename(self, ctx, *, name):
         pr = ctx.prefix
         if not has_permissions(ctx.author, ["administrator"]):
@@ -356,7 +374,13 @@ class forms(commands.Cog):
                     reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
                     await ctx.send(embed=reply)
 
-    @commands.command(aliases=["remove-field", "delete-field", "rf", "df"])
+
+    @commands.command(
+        aliases=["remove-field", "delete-field", "rf", "df"],
+        description="удаляет вопрос из формы",
+        usage="Заголовок",
+        brief="Возраст"
+    )
     async def remove_field(self, ctx, *, name):
         pr = ctx.prefix
         if not has_permissions(ctx.author, ["administrator"]):
@@ -401,6 +425,7 @@ class forms(commands.Cog):
                 reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
                 await ctx.send(embed=reply)
 
+
     @commands.command(aliases=["clear-form", "cf"])
     async def clear_form(self, ctx):
         pr = ctx.prefix
@@ -429,7 +454,13 @@ class forms(commands.Cog):
             reply.set_footer(text=str(ctx.author), icon_url=str(ctx.author.avatar_url))
             await ctx.send(embed=reply)
 
-    @commands.command(aliases=["tfe", "embed-text", "et"])
+
+    @commands.command(
+        aliases=["tfe", "embed-text", "et"],
+        description="копирует весь текст с эмбеда и отправляет Вам",
+        usage="ID_сообщения #канал",
+        brief="123456123456123456 #general"
+    )
     async def embed_text(self, ctx, _id, channel_search):
         channel = detect.channel(ctx.guild, channel_search)
         if channel is None:
@@ -478,86 +509,6 @@ class forms(commands.Cog):
                     else:
                         await ctx.send(text)
 
-    #======= Errors =========
-    @add_field.error
-    async def add_field_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** добавляет вопрос в анкету (форму) сервера\n"
-                    f'**Использование:** `{p}{cmd} Заголовок`\n'
-                    f"**Пример:** `{p}{cmd} Возраст`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-    
-    @reply_channel.error
-    async def reply_channel_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** настраивает канал, в который будут отправляться заоплненные формы (обязателен для работы анкеты)\n"
-                    f'**Использование:** `{p}{cmd} #канал`\n'
-                    f"**Пример:** `{p}{cmd} #список-заявок`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-    
-    @rename.error
-    async def rename_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** переименовывает заголовок вопроса\n"
-                    f'**Использование:** `{p}{cmd} Старый заголовок`\n'
-                    f"**Пример:** `{p}{cmd} Возпаст`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-    
-    @remove_field.error
-    async def remove_field_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** удаляет вопрос из формы\n"
-                    f'**Использование:** `{p}{cmd} Заголовок`\n'
-                    f"**Пример:** `{p}{cmd} Возраст`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-
-    @embed_text.error
-    async def embed_text_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** копирует весь текст с эмбеда и отправляет Вам\n"
-                    f'**Использование:** `{p}{cmd} ID_сообщения #канал`\n'
-                    f"**Пример:** `{p}{cmd} {ctx.message.id} #{ctx.channel.name}`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
 
 def setup(client):
     client.add_cog(forms(client))

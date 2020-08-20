@@ -3,10 +3,11 @@ from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio, os, datetime, random
 
-import pymongo
-from box.db_worker import cluster
 from functions import find_alias, carve_int, get_field
 
+from pymongo import MongoClient
+app_string = str(os.environ.get('cluster_string'))
+cluster = MongoClient(app_string)
 db = cluster["guilds"]
 
 #====== Roulette game rules ========
@@ -36,6 +37,8 @@ work_replies = [
 deck = None
 
 #======= Functions ========
+from functions import Customer, ItemStorage, CustomerList
+
 def card_val(name):
     s = name.rsplit("_", maxsplit=1)[1]
     if s in ["j", "q", "k"]:
@@ -111,17 +114,12 @@ async def do_roulette(channel):
             elif typ == "color" and value == win_col:
                 summ += 3 * bet
         if summ > 0:
-            to_inc_list.append((f"members.{user_id}", summ))
+            to_inc_list.append(user_id)
             mass_ping += f"> <@!{user_id}>\n"
-    to_inc = {}
-    to_inc.update(to_inc_list)
 
-    if to_inc != {}:
-        collection = db["money"]
-        collection.find_one_and_update(
-            {"_id": channel.guild.id},
-            {"$inc": to_inc}
-        )
+    if to_inc_list != []:
+        player_base = CustomerList(channel.guild.id, {"_id": True})
+        player_base.mass_inc_bal(summ, to_inc_list)
     if mass_ping == "":
         mass_ping = "> Отсутствуют"
     
@@ -148,21 +146,13 @@ async def do_lottery(channel):
     winner_id = random.choice(lot["ids"])
     winner = channel.guild.get_member(winner_id)
 
-    collection = db["money"]
-    result = collection.find_one_and_update(
-        {"_id": guild_id},
-        {"$inc": {f"members.{winner_id}": lot["pool"]}},
-        upsert=True,
-        projection={"cur": True}
-    )
-    cur = get_field(result, "cur")
-    if cur is None:
-        cur = "💰"
+    player = Customer(channel.guild.id, winner_id, {})
+    player.inc_bal(lot["pool"])
     
     win_emb = discord.Embed(
         title="🎉 Результаты лотереи",
         description=(
-            f"**Призовой фонд:** {lot['pool']} {cur}\n"
+            f"**Призовой фонд:** {lot['pool']}\n"
             f"**Кол-во участников:** {len(lot['ids'])}\n"
             f"**Победитель:** {winner}, получает весь призовой фонд!"
         ),
@@ -210,8 +200,14 @@ class economy(commands.Cog):
     async def on_ready(self):
         print(">> Mini games cog is loaded")
 
+    #========= Commands ==========
     @commands.cooldown(5, 300, commands.BucketType.member)
-    @commands.command(aliases=["r"])
+    @commands.command(
+        aliases=["r"],
+        description="начинает рулетку или участвует в существующей игре.",
+        usage="Размер Номер_поля\nРазмер line Номер_ряда\nРазмер Красный/Зеленый/Черный",
+        brief="100 красный\n100 line 1\n100 25",
+        help=roulette_url )
     async def roulette(self, ctx, bet, *, choice):
         p = ctx.prefix
         if not bet.isdigit():
@@ -226,23 +222,15 @@ class economy(commands.Cog):
         else:
             bet = int(bet)
 
-            collection = db["money"]
-            result = collection.find_one(
-                {"_id": ctx.guild.id, f"members.{ctx.author.id}": {"$exists": True}},
-                projection={"cur": True, f"members.{ctx.author.id}": True}
-            )
-            bal = get_field(result, "members", f"{ctx.author.id}")
-            if bal is None:
-                bal = 0
-            cur = get_field(result, "cur")
-            if cur is None:
-                cur = "💰"
+            server = ItemStorage(ctx.guild.id, {"cy": True})
+            cur = server.cy
+            customer = Customer(ctx.guild.id, ctx.author.id)
             
-            if bet > bal or bet < 1:
+            if bet > customer.balance or bet < 1:
                 if bet < 1:
                     desc = f"Минимальная ставка 2 {cur}"
                 else:
-                    desc = f"У Вас недостаточно денег. Ваш баланс: {bal} {cur}"
+                    desc = f"У Вас недостаточно денег. Ваш баланс: {customer.balance} {cur}"
                 reply = discord.Embed(
                     title="💢 Упс",
                     description=desc,
@@ -252,11 +240,7 @@ class economy(commands.Cog):
                 await ctx.send(embed=reply)
             
             else:
-                collection.find_one_and_update(
-                    {"_id": ctx.guild.id},
-                    {"$inc": {f"members.{ctx.author.id}": -bet}},
-                    upsert=True
-                )
+                customer.inc_bal(-bet)
 
                 choice = choice.lower()
                 correct_choice = False
@@ -332,29 +316,18 @@ class economy(commands.Cog):
                     if its_new_game:
                         await do_roulette(ctx.channel)
 
+
     @commands.cooldown(1, 3600, commands.BucketType.member)
     @commands.command(aliases=["w"])
     async def work(self, ctx):
-        collection = db["money"]
-        result = collection.find_one(
-            {"_id": ctx.guild.id},
-            projection={"cur": True, "work_range": True}
-        )
-        w_range = get_field(result, "work_range")
-        if w_range is None:
-            w_range = (100, 300)
-        cur = get_field(result, "cur")
-        if cur is None:
-            cur = "💰"
+        w_range = (100, 300)
+        cur = ItemStorage(ctx.guild.id, {"cy": True}).cy
+        player = Customer(ctx.guild.id, ctx.author.id, {})
 
         summ = random.randint(*w_range)
         text = random.choice(work_replies).replace("{earning}", f"{summ} {cur}")
 
-        collection.find_one_and_update(
-            {"_id": ctx.guild.id},
-            {"$inc": {f"members.{ctx.author.id}": summ}},
-            upsert=True
-        )
+        player.inc_bal(summ)
         
         reply = discord.Embed(
             title=f"✅ {ctx.author}",
@@ -363,8 +336,13 @@ class economy(commands.Cog):
         )
         await ctx.send(embed=reply)
 
+
     @commands.cooldown(3, 600, commands.BucketType.member)
-    @commands.command(aliases=["lot"])
+    @commands.command(
+        aliases=["lot"],
+        description="начинает новую лотерею или участвует в существующей.",
+        usage="Ставка",
+        brief="100" )
     async def lottery(self, ctx, bet):
         if not bet.isdigit():
             reply = discord.Embed(
@@ -378,26 +356,15 @@ class economy(commands.Cog):
         else:
             bet = int(bet)
 
-            collection = db["money"]
-            result = collection.find_one(
-                {
-                    "_id": ctx.guild.id,
-                    f"members.{ctx.author.id}": {"$exists": True}
-                },
-                projection={"cur": True, f"members.{ctx.author.id}": True}
-            )
-            bal = get_field(result, "members", f"{ctx.author.id}")
-            if bal is None:
-                bal = 0
-            cur = get_field(result, "cur")
-            if cur is None:
-                cur = "💰"
+            server = ItemStorage(ctx.guild.id, {"cy": True})
+            cur = server.cy
+            customer = Customer(ctx.guild.id, ctx.author.id)
             
-            if bet > bal or bet < 100:
+            if bet > customer.balance or bet < 100:
                 if bet < 1:
                     desc = f"Минимальная цена билета 100 {cur}"
                 else:
-                    desc = f"У Вас недостаточно денег. Ваш баланс: {bal} {cur}"
+                    desc = f"У Вас недостаточно денег. Ваш баланс: {customer.balance} {cur}"
                 reply = discord.Embed(
                     title="💢 Упс",
                     description=desc,
@@ -407,11 +374,7 @@ class economy(commands.Cog):
                 await ctx.send(embed=reply)
             
             else:
-                collection.find_one_and_update(
-                    {"_id": ctx.guild.id},
-                    {"$inc": {f"members.{ctx.author.id}": -bet}},
-                    upsert=True
-                )
+                customer.inc_bal(-bet)
 
                 global lotteries
                 new_game = False
@@ -452,8 +415,13 @@ class economy(commands.Cog):
                 if new_game:
                     await do_lottery(ctx.channel)
 
+
     @commands.cooldown(5, 600, commands.BucketType.member)
-    @commands.command(aliases=["black-jack", "bj"])
+    @commands.command(
+        aliases=["black-jack", "bj"],
+        description="начинает игру в Блэк Джек.",
+        usage="Ставка",
+        brief="100" )
     async def black_jack(self, ctx, bet):
         if not bet.isdigit():
             reply = discord.Embed(
@@ -467,22 +435,15 @@ class economy(commands.Cog):
         else:
             bet = int(bet)
 
-            collection = db["money"]
-            result = collection.find_one(
-                {
-                    "_id": ctx.guild.id,
-                    f"members.{ctx.author.id}": {"$exists": True}
-                },
-                projection={"cur": True, f"members.{ctx.author.id}": True}
-            )
-            bal = get_field(result, "members", f"{ctx.author.id}", default=0)
-            cur = get_field(result, "cur", default="💰")
+            server = ItemStorage(ctx.guild.id, {"cy": True})
+            cur = server.cy
+            customer = Customer(ctx.guild.id, ctx.author.id)
             
-            if bet > bal or bet < 100:
+            if bet > customer.balance or bet < 100:
                 if bet < 100:
                     desc = f"Минимальная ставка - 100 {cur}"
                 else:
-                    desc = f"У Вас недостаточно денег. Ваш баланс: {bal} {cur}"
+                    desc = f"У Вас недостаточно денег. Ваш баланс: {customer.balance} {cur}"
                 reply = discord.Embed(
                     title="💢 Упс",
                     description=desc,
@@ -529,7 +490,7 @@ class economy(commands.Cog):
                             table.add_field(name="**Рука дилера**", value=f"{dealer_hand}\nОчков: {dealer_hand.value}")
                             await ttt.edit(embed=table)
                         elif move == "double down":
-                            if bal >= bet * 2:
+                            if customer.balance >= bet * 2:
                                 my_hand.add_card(d.take_card())
                                 bet *= 2
                                 playing = False
@@ -590,65 +551,7 @@ class economy(commands.Cog):
                     await ttt.edit(embed=table)
 
                     if earning != 0:
-                        collection.find_one_and_update(
-                            {"_id": ctx.guild.id},
-                            {"$inc": {f"members.{ctx.author.id}": earning}},
-                            upsert=True
-                        )
-
-    #========= Errors =========
-    @roulette.error
-    async def roulette_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** начинает рулетку или участвует в существующей игре.\n"
-                    f"Ставка на определённое поле (полей 36): `{p}{cmd} Размер Номер_поля`\n"
-                    f"Ставка на ряд (рядов 3): `{p}{cmd} Размер line Номер_ряда`\n"
-                    f"Ставка на цвет (цветов 3): `{p}{cmd} Размер Красный/Зеленый/Черный`\n"
-                    f"**Примеры:** `{p}{cmd} 100 красный`\n"
-                    f">> `{p}{cmd} 100 line 1`\n"
-                    f">> `{p}{cmd} 100 25`\n"
-                )
-            )
-            reply.set_image(url=roulette_url)
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-
-    @lottery.error
-    async def lottery_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** начинает новую лотерею или участвует в существующей.\n"
-                    f"**Использование:** `{p}{cmd} Ставка`\n"
-                    f"**Пример:** `{p}{cmd} 100`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-
-    @black_jack.error
-    async def black_jack_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** начинает игру в Блэк Джек.\n"
-                    f"**Использование:** `{p}{cmd} Ставка`\n"
-                    f"**Пример:** `{p}{cmd} 100`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
+                        customer.inc_bal(earning)
 
 
 def setup(client):

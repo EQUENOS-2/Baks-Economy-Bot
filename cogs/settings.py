@@ -4,13 +4,15 @@ from discord.ext.commands import Bot
 import failures
 import asyncio, os, datetime, json
 
-import pymongo
+from functions import detect, get_field, try_int, has_permissions, ServerConfig, is_moderator
 
-from functions import detect, get_field, has_roles, try_int, has_permissions
-from box.db_worker import cluster
+from pymongo import MongoClient
+app_string = str(os.environ.get('cluster_string'))
+cluster = MongoClient(app_string)
 db = cluster["guilds"]
 
 trigger_file = "msg_triggers.json"
+mod_role_limit = 10
 
 def delete(filename):
     if filename in os.listdir("."):
@@ -25,21 +27,6 @@ def load(filename, default=None):
 def save(data, filename):
     with open(filename, "w", encoding="utf8") as fff:
         json.dump(data, fff)
-
-def is_moderator():
-    def predicate(ctx):
-        mod_role_ids = [688313470881759288]
-        author_role_ids = [r.id for r in ctx.author.roles]
-        has = False
-        for role_id in mod_role_ids:
-            if role_id in author_role_ids:
-                has = True
-                break
-        if has:
-            return True
-        else:
-            raise failures.IsNotModerator()
-    return commands.check(predicate)
 
 #============= Cog itself ================
 
@@ -86,137 +73,134 @@ class settings(commands.Cog):
     @commands.cooldown(1, 3, commands.BucketType.member)
     @commands.command(aliases=["set", "how-set", "hs"])
     async def how_set(self, ctx):
-        p = ctx.prefix
-        collection = db["money"]
-        result = collection.find_one(
-            {"_id": ctx.guild.id},
-            projection={"cur": True, "work_range": True}
-        )
-        cur = get_field(result, "cur", default="💰")
-        wr = get_field(result, "work_range", default=(100, 300))
+        server = ServerConfig(ctx.guild.id)
 
-        collection = db["msg_manip"]
-        result = collection.find_one(
-            {"_id": ctx.guild.id}
-        )
-        trig = get_field(result, "trigger", default="выключен")
-        rep = get_field(result, "reply", default="отсутствует")
+        mr_desc = ""
+        for mr in server.mod_roles:
+            mr_desc += f"> **<@&{mr}>**\n"
+        if mr_desc == "":
+            mr_desc = "> Отсутствуют"
+        
+        if server.log_channel is not None:
+            log_desc = f"> <#{server.log_channel}>"
+        else:
+            log_desc = "> Отсутствует"
 
         reply = discord.Embed(
-            title="⚙ Текущие настройки",
-            description=(
-                f"**Валюта:** {cur}\n"
-                f"**Заработок при `{p}work`:** {wr[0]}-{wr[1]} {cur}\n"
-                f"**Триггер сообщений:** {trig}\n"
-                f"**Ответ на сообщения с триггером:** {rep}\n"
-            ),
+            title=":gear: | Текущие настройки",
             color=ctx.guild.me.color
         )
+        reply.add_field(name="🛠 Роли модераторов", value=mr_desc)
+        reply.add_field(name="📋 Канал логов", value=log_desc)
         reply.set_thumbnail(url=f"{ctx.guild.icon_url}")
         await ctx.send(embed=reply)
 
-    #@commands.cooldown(1, 3, commands.BucketType.member)
-    #@commands.command(aliases=["master-role", "mr"])
-    async def master_role(self, ctx, *, role_s):
-        if not has_permissions(ctx.author, ["administrator"]):
-            reply = discord.Embed(
-                title="❌ Недостаточно прав",
-                description=(
-                    "**Необходимые права:**\n"
-                    f"> Администратор"
-                ),
-                color=discord.Color.dark_red()
-            )
-            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-            await ctx.send(embed=reply)
-        
-        else:
-            correct_role_arg = True
-            if role_s.lower() == "delete":
-                role = None
-                desc = "Мастер-роль удалена"
-            else:
-                role = detect.role(ctx.guild, role_s)
-                if role is None:
-                    correct_role_arg = False
-
-                    reply = discord.Embed(
-                        title="💢 Упс",
-                        description=f"Вы ввели {role_s}, подразумевая роль, но она не была найдена.",
-                        color=discord.Color.dark_red()
-                    )
-                    reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                    await ctx.send(embed=reply)
-                else:
-                    desc = f"Мастер-роль настроена как <@&{role.id}>"
-            
-            if correct_role_arg:
-                collection = db["money"]
-                collection.find_one_and_update(
-                    {"_id": ctx.guild.id},
-                    {"$set": {"master_role": role.id}},
-                    upsert=True
-                )
-                reply = discord.Embed(
-                    title="✅ Выполнено",
-                    description=desc,
-                    color=discord.Color.dark_green()
-                )
-                reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                await ctx.send(embed=reply)
 
     @commands.cooldown(1, 3, commands.BucketType.member)
-    @commands.command(aliases=["set-currency", "set-cur", "setcur"])
-    async def set_currency(self, ctx, string):
-        p = ctx.prefix
-        if not has_permissions(ctx.author, ["administrator"]):
+    @commands.has_permissions(administrator=True)
+    @commands.command(
+        aliases=["add-mod-role", "add-moderator-role", "amr"],
+        description="настраивает роль модератора на сервере",
+        usage="Роль",
+        brief="@Moderator" )
+    async def add_mod_role(self, ctx, role: discord.Role):
+        server = ServerConfig(ctx.guild.id, {"mod_roles": True})
+        server.clear_outdated_roles(ctx.guild.roles)
+        if len(server.mod_roles) >= mod_role_limit:
             reply = discord.Embed(
-                title="❌ Недостаточно прав",
+                title="❌ | Ошибка",
                 description=(
-                    "**Необходимые права:**\n"
-                    f"> Администратор"
+                    f"Добавлено слишком много ролей модераторов: {mod_role_limit}\n"
+                    f"Убрать лишнюю: `{ctx.prefix}remove-mod-role`"
                 ),
                 color=discord.Color.dark_red()
             )
-            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            reply.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar_url)
             await ctx.send(embed=reply)
-        
+
         else:
-            string = string[:+52]
-            collection = db["money"]
-            collection.find_one_and_update(
-                {"_id": ctx.guild.id},
-                {"$set": {"cur": string}},
-                upsert=True
-            )
+            server.add_mod_role(role.id)
             reply = discord.Embed(
                 title="✅ Выполнено",
-                description=(
-                    f"Новый значок валюты: {string}\n\n"
-                    f"Текущие настройки: `{p}how-set`"
-                ),
+                description=f"Добавлена роль модератора: **<@&{role.id}>**",
                 color=discord.Color.dark_green()
             )
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
     
+
     @commands.cooldown(1, 3, commands.BucketType.member)
-    @commands.command(aliases=["work-range"])
-    async def work_range(self, ctx, lower_bound, upper_bound):
-        p = ctx.prefix
-        if not has_permissions(ctx.author, ["administrator"]):
+    @commands.has_permissions(administrator=True)
+    @commands.command(
+        aliases=["remove-mod-role", "remove-moderator-role", "rmr"],
+        description="убирает роль модератора с сервера",
+        usage="Роль",
+        brief="@Moderator" )
+    async def remove_mod_role(self, ctx, role: discord.Role):
+        server = ServerConfig(ctx.guild.id, {"mod_roles": True})
+
+        if role.id not in server.mod_roles:
             reply = discord.Embed(
-                title="❌ Недостаточно прав",
-                description=(
-                    "**Необходимые права:**\n"
-                    f"> Администратор"
-                ),
+                title="❌ | Ошибка",
+                description=f"Роль **<@&{role.id}>** не является модераторской.",
                 color=discord.Color.dark_red()
+            )
+            reply.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar_url)
+            await ctx.send(embed=reply)
+
+        else:
+            server.remove_mod_role(role.id)
+            reply = discord.Embed(
+                title="✅ Выполнено",
+                description=f"Убрана роль модератора: **<@&{role.id}>**",
+                color=discord.Color.dark_green()
             )
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
-        
-        elif not lower_bound.isdigit() or not upper_bound.isdigit():
+
+
+    @commands.cooldown(1, 3, commands.BucketType.member)
+    @commands.check_any(
+        is_moderator(),
+        commands.has_permissions(administrator=True) )
+    @commands.command(
+        aliases=["set-currency", "set-cur", "setcur"],
+        description="настраивает значок валюты",
+        usage="Значок",
+        brief="✨" )
+    async def set_currency(self, ctx, string):
+        p = ctx.prefix
+        string = string[:+52]
+        collection = db["items"]
+        collection.find_one_and_update(
+            {"_id": ctx.guild.id},
+            {"$set": {"cy": string}},
+            upsert=True
+        )
+        reply = discord.Embed(
+            title="✅ Выполнено",
+            description=(
+                f"Новый значок валюты: {string}\n\n"
+                f"Текущие настройки: `{p}how-set`"
+            ),
+            color=discord.Color.dark_green()
+        )
+        reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+        await ctx.send(embed=reply)
+    
+
+    @commands.cooldown(1, 3, commands.BucketType.member)
+    @commands.check_any(
+        is_moderator(),
+        commands.has_permissions(administrator=True) )
+    @commands.command(
+        aliases=["work-range"],
+        description="настраивает диапазон заработка с команды `work`",
+        usage="Мин.заработок Макс.заработок",
+        brief="300 700" )
+    async def work_range(self, ctx, lower_bound, upper_bound):
+        p = ctx.prefix
+        if not lower_bound.isdigit() or not upper_bound.isdigit():
             reply = discord.Embed(
                 title="💢 Ошибка",
                 description=(
@@ -263,97 +247,87 @@ class settings(commands.Cog):
             )
             await ctx.send(embed=reply)
 
+
     @commands.cooldown(1, 3, commands.BucketType.member)
-    @commands.command(aliases=["trig", "t"])
+    @commands.check_any(
+        is_moderator(),
+        commands.has_permissions(administrator=True) )
+    @commands.command(
+        aliases=["trig", "t"],
+        description="настраивает триггер, провоцирующий ответ бота",
+        usage="текст\ndelete",
+        brief="привет" )
     async def trigger(self, ctx, *, string):
         p = ctx.prefix
-        if not has_permissions(ctx.author, ["administrator"]):
-            reply = discord.Embed(
-                title="❌ Недостаточно прав",
-                description=(
-                    "**Необходимые права:**\n"
-                    f"> Администратор"
-                ),
-                color=discord.Color.dark_red()
-            )
-            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-            await ctx.send(embed=reply)
-        
+        if string.lower() == "delete":
+            desc = "Триггер сообщений удалён"
+            string = None
         else:
-            if string.lower() == "delete":
-                desc = "Триггер сообщений удалён"
-                string = None
-            else:
-                string = string[:+500].lower()
-                desc = f"Теперь бот отслеживает сообщения с \"{string}\""
+            string = string[:+500].lower()
+            desc = f"Теперь бот отслеживает сообщения с \"{string}\""
 
-            collection = db["msg_manip"]
-            collection.find_one_and_update(
-                {"_id": ctx.guild.id},
-                {"$set": {"trigger": string}},
-                upsert=True
-            )
-            data = load(trigger_file, {})
-            if f"{ctx.guild.id}" in data:
-                data[f"{ctx.guild.id}"]["trigger"] = string
-                save(data, trigger_file)
+        collection = db["msg_manip"]
+        collection.find_one_and_update(
+            {"_id": ctx.guild.id},
+            {"$set": {"trigger": string}},
+            upsert=True
+        )
+        data = load(trigger_file, {})
+        if f"{ctx.guild.id}" in data:
+            data[f"{ctx.guild.id}"]["trigger"] = string
+            save(data, trigger_file)
 
-            reply = discord.Embed(
-                title="✅ Выполнено",
-                description=(
-                    f"{desc}\n\n"
-                    f"Текущие настройки: `{p}how-set`"
-                ),
-                color=discord.Color.dark_green()
-            )
-            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-            await ctx.send(embed=reply)
+        reply = discord.Embed(
+            title="✅ Выполнено",
+            description=(
+                f"{desc}\n\n"
+                f"Текущие настройки: `{p}how-set`"
+            ),
+            color=discord.Color.dark_green()
+        )
+        reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+        await ctx.send(embed=reply)
+
 
     @commands.cooldown(1, 3, commands.BucketType.member)
-    @commands.command(aliases=["trigger-reply", "trig-reply", "tr"])
+    @commands.check_any(
+        is_moderator(),
+        commands.has_permissions(administrator=True) )
+    @commands.command(
+        aliases=["trigger-reply", "trig-reply", "tr"],
+        description="настраивает ответ бота на сообщения с триггером (подробнее в команде `trigger`)",
+        usage="текст\ndelete",
+        brief="Здравствуй" )
     async def trigger_reply(self, ctx, *, text):
         p = ctx.prefix
-        if not has_permissions(ctx.author, ["administrator"]):
-            reply = discord.Embed(
-                title="❌ Недостаточно прав",
-                description=(
-                    "**Необходимые права:**\n"
-                    f"> Администратор"
-                ),
-                color=discord.Color.dark_red()
-            )
-            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-            await ctx.send(embed=reply)
-        
+        if text.lower() == "delete":
+            desc = "Ответ на сообщения с определённым триггером удалён."
+            text = None
         else:
-            if text.lower() == "delete":
-                desc = "Ответ на сообщения с определённым триггером удалён."
-                text = None
-            else:
-                text = text[:+500]
-                desc = f"Ответ на сообщения с определённым триггером:\n{text}"
+            text = text[:+500]
+            desc = f"Ответ на сообщения с определённым триггером:\n{text}"
 
-            collection = db["msg_manip"]
-            collection.find_one_and_update(
-                {"_id": ctx.guild.id},
-                {"$set": {"reply": text}},
-                upsert=True
-            )
-            data = load(trigger_file, {})
-            if f"{ctx.guild.id}" in data:
-                data[f"{ctx.guild.id}"]["reply"] = text
-                save(data, trigger_file)
+        collection = db["msg_manip"]
+        collection.find_one_and_update(
+            {"_id": ctx.guild.id},
+            {"$set": {"reply": text}},
+            upsert=True
+        )
+        data = load(trigger_file, {})
+        if f"{ctx.guild.id}" in data:
+            data[f"{ctx.guild.id}"]["reply"] = text
+            save(data, trigger_file)
 
-            reply = discord.Embed(
-                title="✅ Выполнено",
-                description=(
-                    f"{desc}\n\n"
-                    f"Текущие настройки: `{p}how-set`"
-                ),
-                color=discord.Color.dark_green()
-            )
-            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-            await ctx.send(embed=reply)
+        reply = discord.Embed(
+            title="✅ Выполнено",
+            description=(
+                f"{desc}\n\n"
+                f"Текущие настройки: `{p}how-set`"
+            ),
+            color=discord.Color.dark_green()
+        )
+        reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+        await ctx.send(embed=reply)
 
     # +---------------------------------------+
     # |            Group: welcome             |
@@ -377,7 +351,10 @@ class settings(commands.Cog):
             reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
             await ctx.send(embed=reply)
         
-    @welcome.command()
+    
+    @welcome.command(
+        description="настраивает канал для приветствий",
+        usage="channel #канал" )
     async def channel(self, ctx, *, channel: discord.TextChannel):
         collection = db["msg_manip"]
         collection.update_one(
@@ -393,7 +370,15 @@ class settings(commands.Cog):
         reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
         await ctx.send(embed=reply)
     
-    @welcome.command()
+
+    @welcome.command(
+        description="настраивает приветственное сообщение",
+        usage="message Текст",
+        brief=(
+            "Добро пожаловать на сервер {server}\n"
+            "Привет, {user}\n"
+            "Ты участник под номером {member_count}!"
+        ) )
     async def message(self, ctx, *, text):
         collection = db["msg_manip"]
         collection.update_one(
@@ -412,122 +397,6 @@ class settings(commands.Cog):
     # +---------------------------------------+
     # |                Errors                 |
     # +---------------------------------------+
-    #@master_role.error
-    async def master_role_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** настраивает роль, дающую права на настройку экономики\n"
-                    f'**Назначение:** `{p}{cmd} @Роль`\n'
-                    f"**Удаление:** `{p}{cmd} delete`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-
-    @set_currency.error
-    async def set_currency_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** настраивает значок валюты\n"
-                    f'**Использование:** `{p}{cmd} Значок`\n'
-                    f"**Пример:** `{p}{cmd} ✨`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-
-    @work_range.error
-    async def work_range_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** настраивает диапазон заработка с команды `{p}work`\n"
-                    f'**Использование:** `{p}{cmd} Мин.заработок Макс.заработок`\n'
-                    f"**Пример:** `{p}{cmd} 300 700`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-
-    @trigger.error
-    async def trigger_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** настраивает триггер, провоцирующий ответ бота\n"
-                    f'**Использование:** `{p}{cmd} текст`\n'
-                    f"**Отключение:** `{p}{cmd} delete`\n"
-                    f"**Пример:** `{p}{cmd} привет`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-    
-    @trigger_reply.error
-    async def trigger_reply_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{cmd}`",
-                description = (
-                    f"**Описание:** настраивает ответ бота на сообщения с триггером (подробнее `{p}trigger`)\n"
-                    f'**Использование:** `{p}{cmd} текст`\n'
-                    f"**Отключение:** `{p}{cmd} delete`\n"
-                    f"**Пример:** `{p}{cmd} Здравствуй`\n"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-
-    @channel.error
-    async def welcome_channel_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            gr = ctx.command.parent
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{gr} {cmd}`",
-                description = (
-                    f"**Описание:** настраивает канал для приветствий\n"
-                    f'**Использование:** `{p}{gr} {cmd} #канал`\n'
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
-        
-    @message.error
-    async def welcome_message_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            p = ctx.prefix
-            cmd = ctx.command.name
-            gr = ctx.command.parent
-            reply = discord.Embed(
-                title = f"❓ Об аргументах `{p}{gr} {cmd}`",
-                description = (
-                    f"**Описание:** настраивает приветственное сообщение\n"
-                    f'**Использование:** `{p}{gr} {cmd} текст`\n'
-                    "**Переменные:** `{user}` - имя пользователя\n"
-                    "> `{server}` - название сервера\n"
-                    "> `{member_count}` - численность сервера"
-                )
-            )
-            reply.set_footer(text = f"{ctx.author}", icon_url = f"{ctx.author.avatar_url}")
-            await ctx.send(embed = reply)
 
 def setup(client):
     client.add_cog(settings(client))
