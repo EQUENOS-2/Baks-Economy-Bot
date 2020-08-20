@@ -1,8 +1,6 @@
-discord
-asyncio
+pip
+Pyome
 pymongo
 dnspython
-pillow
-requests
-Pymoe
-pip
+discord.py
+asyncio

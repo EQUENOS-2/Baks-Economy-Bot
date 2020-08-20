@@ -12,3 +12,5 @@ class Emj:
         self.robolevel = "<:robolevel:735609459291848868>"
         self.bosslevel = "<:bosslevel:735609459547570286>"
         self.destructlevel = "<:destructlevel:735609459522666617>"
+        self.mage_yes = "<:mage_yes:737977524709228616>"
+        self.mage_no = "<:mage_no:737977525275459584>"

@@ -6,7 +6,9 @@ import asyncio, os, datetime
 
 # import pymongo
 
-# from box.db_worker import cluster
+# from help.db_worker import cluster
+print(">> Logging in...\n")
+started_at = datetime.datetime.utcnow()
 
 client = commands.Bot(command_prefix="?")
 client.remove_command("help")
@@ -37,7 +39,6 @@ async def on_ready():
 @client.command(aliases=["lo"])
 async def logout(ctx):
     if ctx.author.id in owner_ids:
-        print([c.name for c in client.commands])
         await ctx.send(f"```>>> Logging out...```")
         await client.logout()
 
@@ -46,37 +47,37 @@ async def logout(ctx):
 async def help(ctx, *, section=None):
     p = ctx.prefix
     sections = {
-        "settings": ["settings", "s", "настройки", "н"],
-        "economy": ["economy", "e", "экономика", "э"],
-        "games": ["games", "g", "игры", "и", "казино"],
-        "forms": ["forms", "f", "формы", "анкеты"],
-        "utils": ["utils", "utilities", "утилиты"]
+        "settings": ["настройки"],
+        "moderation": ["модерация"],
+        "economy": ["экономика"],
+        "games": ["игры", "казино"],
+        "forms": ["формы", "анкеты"],
+        "utils": ["utilities", "утилиты"],
+        "brawlstars": ["brawl", "bs", "бравл старс", "бс", "brawl stars"]
     }
     titles = {
         "settings": "О настройках",
+        "moderation": "О модерации",
         "economy": "Об экономике",
         "games": "Об играх",
         "forms": "Об анкете сервера",
-        "utils": "О полезных командах"
+        "utils": "О полезных командах",
+        "brawlstars": "Интеграция Brawl Stars"
     }
+    desc = ""
+    for sec in titles:
+        desc += f"`{p}help {sec}` - {titles[sec]}\n"
     if section is None:
         reply = discord.Embed(
             title="📖 Меню помощи",
-            description=(
-                "Введите команду, интересующую Вас:\n\n"
-                f"`{p}help settings` - настройка\n"
-                f"`{p}help economy` - экономика\n"
-                f"`{p}help games` - игры\n"
-                f"`{p}help forms` - форма/анкета\n"
-                f"`{p}help utils` - утилиты"
-            ),
+            description=f"Введите команду, интересующую Вас:\n\n{desc}",
             color=ctx.guild.me.color
         )
         reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
         await ctx.send(embed=reply)
     
     else:
-        section = find_alias(sections, section.lower())
+        section = find_alias(sections, section)
         if section is None:
             reply = discord.Embed(
                 title="🔎 Раздел не найден",
@@ -86,7 +87,7 @@ async def help(ctx, *, section=None):
             await ctx.send(embed=reply)
         
         else:
-            text = open(f"box/{section}.txt", "r", encoding="utf8").read()
+            text = open(f"help/{section}.txt", "r", encoding="utf8").read()
             text = text.replace("{p}", p)
 
             reply = discord.Embed(
@@ -103,6 +104,7 @@ async def help(ctx, *, section=None):
 @commands.cooldown(1, 1, commands.BucketType.member)
 @client.command(aliases=["bot-stats", "bs", "bot-info", "bi"])
 async def stats(ctx):
+    uptime = datetime.datetime.utcnow() - started_at
     total_members = 0
     total_servers = 0
     
@@ -112,12 +114,12 @@ async def stats(ctx):
     
     reply = discord.Embed(
         title="🌍 Статистика бота",
-        description=(
-            f"**Всего серверов:** {total_servers} 🗂\n\n"
-            f"**Всего пользователей:** {total_members} 👥"
-        ),
         color=discord.Color.blue()
     )
+    reply.add_field(name="🗂 Серверов", value=f"> {total_servers}", inline=False)
+    reply.add_field(name="👥 Пользователей", value=f"> {total_members}", inline=False)
+    reply.add_field(name="🕑 Аптайм", value=f"> {visual_delta(uptime)}")
+    reply.add_field(name="🛰 Пинг", value=f"> {client.latency * 1000:.0f}", inline=False)
     reply.set_thumbnail(url=str(client.user.avatar_url))
     await ctx.send(embed=reply)
 
@@ -126,23 +128,28 @@ async def stats(ctx):
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
         cool_notify = discord.Embed(
-            title='⏳ Перезарядка',
+            title='⏳ Команда перезаряжается',
             description = f"Попробуйте снова через {visual_delta(int(error.retry_after))}"
         )
         cool_notify.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
         await ctx.send(embed=cool_notify)
     
     elif isinstance(error, commands.BadArgument):
-        kw, search, rest = str(error).split(maxsplit=2)
-        kw = kw.lower()
+        kw, search, rest = str(error).split('"', maxsplit=2)
+        kw = kw.lower().strip()
+        search = search.strip()
+        
         del rest
+        if "convert" in kw:
+            kw = search
         translations = {
             "user": f"По запросу {search} не было найдено пользователей.",
             "member": f"По запросу {search} не было найдено участников.",
             "role": f"По запросу {search} не было найдено ролей.",
-            "channel": f"По запросу {search} не было найдено каналов."
+            "channel": f"По запросу {search} не было найдено каналов.",
+            "int": f"Пожалуйста, введите целое число."
         }
-        desc = translations.get(kw, f"Введённый аргумент {search} не соответствует требуемому формату.")
+        desc = translations.get(kw, "Введённый аргумент не соответствует требуемому формату.")
 
         reply = discord.Embed(
             title="❌ Неверный аргумент",
@@ -151,6 +158,11 @@ async def on_command_error(ctx, error):
         )
         reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
         await ctx.send(embed=reply)
+
+        try:
+            ctx.command.reset_cooldown(ctx)
+        except Exception:
+            pass
     
     elif isinstance(error, commands.CheckAnyFailure):
         if ctx.author.id not in owner_ids:
@@ -190,7 +202,42 @@ async def on_command_error(ctx, error):
         pass
     
     elif isinstance(error, commands.MissingRequiredArgument):
-        pass
+        iw = str(ctx.invoked_with)
+        p = ctx.prefix; cmd = ctx.command
+        description = "`-`"; usage = "`-`"; brief = "`-`"; aliases = "-"
+        if cmd.description != "":
+            description = cmd.description
+        if cmd.usage is not None:
+            usage = "\n> ".join( [f"`{p}{iw} {u}`" for u in cmd.usage.split("\n")] )
+        if cmd.brief is not None:
+            brief = "\n> ".join( [f"`{p}{iw} {u}`" for u in cmd.brief.split("\n")] )
+        if len(cmd.aliases) > 0:
+            aliases = ", ".join(cmd.aliases)
+        
+        reply = discord.Embed(
+            title = f"❓ Об аргументах `{p}{iw}`",
+            description = (
+                f"**Описание:** {description}\n"
+                f"**Использование:** {usage}\n"
+                f"**Примеры:** {brief}\n\n"
+                f"**Синонимы:** `{aliases}`"
+            )
+        )
+        if cmd.help is not None:          # So here I use cmd.help as an optional url holder
+            reply.set_image(url=cmd.help) # Ok? So don't forget please
+        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
+
+        try:
+            ctx.command.reset_cooldown(ctx)
+        except Exception:
+            pass
+
+    elif isinstance(error, failures.CooldownResetSignal):
+        try:
+            ctx.command.reset_cooldown(ctx)
+        except Exception:
+            pass
 
     else:
         print(error)
@@ -201,7 +248,7 @@ for file_name in os.listdir("./cogs"):
     if file_name.endswith(".py"):
         try:
             client.load_extension(f"cogs.{file_name[:-3]}")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f">>> {e}")
 
 client.run(token)
