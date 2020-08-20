@@ -1,6 +1,6 @@
 pip
-Pyome
+Pymoe
 pymongo
 dnspython
-discord
+discord.py
 asyncio
