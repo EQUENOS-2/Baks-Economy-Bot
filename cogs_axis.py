@@ -260,7 +260,7 @@ for file_name in os.listdir("./cogs"):
     if file_name.endswith(".py"):
         try:
             client.load_extension(f"cogs.{file_name[:-3]}")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"--> Cog not loaded: {e}")
 
 client.run(token)

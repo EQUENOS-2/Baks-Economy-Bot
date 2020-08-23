@@ -197,7 +197,7 @@ class economy(commands.Cog):
         is_moderator(),
         commands.has_permissions(administrator=True) )
     @commands.command(
-        aliases=["edit-item", "ei", "edititem", "edit"],
+        aliases=["edit-item", "ei", "edititem"],
         description="изменяет некоторые характеристики шмотки. Параметры:\n`name`, `price`, `role`",
         usage="параметр [Название] Новое значние",
         brief=(
