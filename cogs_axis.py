@@ -7,10 +7,15 @@ import asyncio, os, datetime
 # import pymongo
 
 # from help.db_worker import cluster
-print(">> Logging in...\n")
 started_at = datetime.datetime.utcnow()
 
-client = commands.Bot(command_prefix="?")
+def prefix(client, message):
+    p = ["?", "!"]
+    if client.user.id == 582881093154504734:
+        p = ".."
+    return p
+
+client = commands.Bot(command_prefix=prefix)
 client.remove_command("help")
 
 token = str(os.environ.get("bot_token"))
@@ -41,6 +46,12 @@ async def logout(ctx):
     if ctx.author.id in owner_ids:
         await ctx.send(f"```>>> Logging out...```")
         await client.logout()
+
+
+@client.command()
+async def ping(ctx):
+    await ctx.send(f"{ctx.author.mention}, pong")
+
 
 @commands.cooldown(1, 1, commands.BucketType.member)
 @client.command()
@@ -100,6 +111,7 @@ async def help(ctx, *, section=None):
             )
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
+
 
 @commands.cooldown(1, 1, commands.BucketType.member)
 @client.command(aliases=["bot-stats", "bs", "bot-info", "bi"])
@@ -248,7 +260,7 @@ for file_name in os.listdir("./cogs"):
     if file_name.endswith(".py"):
         try:
             client.load_extension(f"cogs.{file_name[:-3]}")
-        except Exception as e:
-            print(f">>> {e}")
+        except Exception:
+            pass
 
 client.run(token)
