@@ -48,6 +48,31 @@ async def logout(ctx):
         await client.logout()
 
 
+@commands.is_owner()
+@client.command()
+async def execute(ctx, *, code):
+    sep = "# CODE INSERTION"
+
+    if code.startswith("py"):
+        code = code[2:]
+    code = "    " * 3 + code.strip("```")
+    code = code.replace("\n", "\n" + 3 * "    ")
+
+    cog_code = open("cogs/ghost_cog.py", "r", encoding="utf-8").read()
+    start, smth = cog_code.split(sep, maxsplit=1)
+    smth, end = smth.rsplit(sep, maxsplit=1)
+    del smth
+    cog_code = start + sep + "\n" + code + "\n" + sep + end
+    with open("cogs/ghost_cog.py", "w", encoding="utf-8") as f:
+        f.write(cog_code)
+    
+    try:
+        client.reload_extension("cogs.ghost_cog")
+        await ctx.send("```>> Ghost cog is ready```")
+    except Exception as e:
+        await ctx.send(f"```>> Cog failed: {e}```")
+
+
 @client.command()
 async def ping(ctx):
     await ctx.send(f"{ctx.author.mention}, pong")
