@@ -1,0 +1,5 @@
+`{p}dm-role` - рассылка в лс обладателям роли
+`{p}embed` - написать embed
+`{p}edit` - отредактировать embed
+`{p}reaction-role` - добавляет роль за реакцию
+`{p}remove-reaction-role` - убирает роль за реакцию
