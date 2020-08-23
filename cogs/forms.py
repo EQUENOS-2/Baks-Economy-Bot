@@ -3,8 +3,9 @@ from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio, os
 
-import pymongo
-from help.db_worker import cluster
+from pymongo import MongoClient
+app_string = str(os.environ.get('cluster_string'))
+cluster = MongoClient(app_string)
 
 #========== Variables ==========
 db = cluster["guilds"]

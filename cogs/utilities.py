@@ -9,7 +9,13 @@ from datetime import datetime, timedelta
 
 from pymongo import MongoClient
 app_string = str(os.environ.get('cluster_string'))
-cluster = MongoClient(app_string)
+cluster = None; att = 2
+while cluster is None:
+    try:
+        cluster = MongoClient(app_string)
+    except Exception as e:
+        att += 1
+        print(f"--> Retrying to connect to MongoDB (attempt {att}): [{e}]")
 
 #----------------------------------------------+
 #                 Constants                    |

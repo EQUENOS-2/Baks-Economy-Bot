@@ -154,10 +154,10 @@ class economy(commands.Cog):
     @commands.command(
         aliases=["create-item", "ci", "createitem"],
         description="создаёт новую шмотку на сервере",
-        usage="Название",
-        brief="Фтуболка" )
-    async def create_item(self, ctx, *, name):
-        server = ItemStorage(ctx.guild.id, {"items": True})
+        usage="Цена Название",
+        brief="100 Фтуболка" )
+    async def create_item(self, ctx, price: int, *, name):
+        server = ItemStorage(ctx.guild.id, {"items": True, "cy": True})
         if len(server.items) >= item_limit:
             reply = discord.Embed(
                 title="❌ | Переполнение",
@@ -166,11 +166,23 @@ class economy(commands.Cog):
             )
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
+        elif price < 0:
+            reply = discord.Embed(
+                title="❌ | Ошибка",
+                description=f"Цена шмотки не может быть отрицательной",
+                color=discord.Color.dark_red()
+            )
+            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
         else:
-            server.create_item(ctx.message.id, name[:name_limit])
-            desc = f"Вы создали новую шмотку - {name}.\n**Редактировать:** `{ctx.prefix}edit-item`\n"
+            server.create_item(ctx.message.id, name[:name_limit], price)
+            desc = (
+                f"Вы создали новую шмотку - **{name}**.\n"
+                f"**Цена:** {price} {server.cy}\n"
+                f"**Редактировать:** `{ctx.prefix}edit-item`"
+            )
             if len(name) > name_limit:
-                desc += f"*Название превышало {name_limit} символов в длину и было обрезано*"
+                desc += f"\n\n*Название превышало {name_limit} символов в длину и было обрезано*"
             reply = discord.Embed(
                 title="📦 | Новая вещь",
                 description=desc,
@@ -185,10 +197,13 @@ class economy(commands.Cog):
         is_moderator(),
         commands.has_permissions(administrator=True) )
     @commands.command(
-        aliases=["edit-item", "ei", "edititem"],
-        description="изменяет некоторые характеристики шмотки",
+        aliases=["edit-item", "ei", "edititem", "edit"],
+        description="изменяет некоторые характеристики шмотки. Параметры:\n`name`, `price`, `role`",
         usage="параметр [Название] Новое значние",
-        brief="name [Старое название] Новое название" )
+        brief=(
+            "name [Старое название] Новое название\n"
+            "price [Название] Новая цена\n"
+            "role [Название] Роль") )
     async def edit_item(self, ctx, param, *, string=None):
         search, value = unpack_args(string)
         p = ctx.prefix; cmd = str(ctx.invoked_with)
@@ -211,7 +226,17 @@ class economy(commands.Cog):
             await ctx.send(embed=reply)
 
         elif value is None:
-            await ctx.send(f"Етат параметр {edit_item_params[parameter]['desc']}")
+            _help_ = edit_item_params[parameter]
+            reply = discord.Embed(
+                title=f"❓ | О параметре `{p}{cmd} {parameter}`",
+                description=(
+                    f"**Описание:** {_help_['desc']}\n"
+                    f"**Использование:** `{p}{cmd} {parameter} {_help_['usage']}`\n"
+                    f"**Пример:** `{p}{cmd} {parameter} {_help_['example']}`"
+                )
+            )
+            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
 
         else:
             server = ItemStorage(ctx.guild.id, projection={"items"})
@@ -352,7 +377,6 @@ class economy(commands.Cog):
                 await ctx.send(embed=reply)
             else:
                 customer.give_item(item)
-                await better_add_role(member, item.role)
                 reply = discord.Embed(
                     title="📦 | Выдана шмотка",
                     description=f"Игрок **{member}** получил **{item.name}** себе в инвентарь.",
@@ -614,11 +638,68 @@ class economy(commands.Cog):
             customer.sell_item(item)
             reply = discord.Embed(
                 title="📦 | Продана шмотка",
-                description=f"Вы продали **{item.name}** и стали богаче на **{item.price // 2}**",
+                description=f"Вы продали **{item.name}** и стали богаче на **{item.price}**",
                 color=discord.Color.dark_blue()
             )
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
+
+
+    @commands.cooldown(1, 2, commands.BucketType.member)
+    @commands.command(
+        aliases=["use-item", "useitem", "use"],
+        description="Использует шмотку. При этом начисляются прикреплённые к шмотке ключи и выдаётся роль шмотки (при наличии)",
+        usage="Название шмотки",
+        brief="Футболка" )
+    async def use_item(self, ctx, *, search):
+        customer = Customer(ctx.guild.id, ctx.author.id)
+        items = customer.search_item(search)
+        item = None
+        if len(items) == 0:
+            reply = discord.Embed(
+                title="❌ | Вещь не найдена",
+                description=f"По запросу '{search}' в Вашем инвентаре не было найдено шмоток.",
+                color=discord.Color.dark_red()
+            )
+            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
+        elif len(items) < 2:
+            item = items[0]
+        else:
+            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            if ind is not None:
+                item = items[ind]
+        del items
+        # Giving item
+        if item is not None:
+            if item.key_for == [] and item.role is None:
+                reply = discord.Embed(
+                    title="❌ | Вещь не имеет свойств",
+                    description=f"**{item.name}** не имеет прикреплённых ключей или роли.",
+                    color=discord.Color.dark_red()
+                )
+                reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed=reply)
+            else:
+                customer.use_item(item)
+                await better_add_role(ctx.author, item.role)
+
+                desc = ""
+                if item.key_for != []:
+                    desc += f"> **Ключей:** {len(item.key_for)} 🔑\n"
+                if item.role is not None:
+                    desc += f"> **Роль <@&{item.role}>**\n"
+                reply = discord.Embed(
+                    title="📦 | Использована шмотка",
+                    description=(
+                        f"Вы использовали **{item.name}** и получили\n"
+                        f"{desc}\n"
+                        f"*Ваш инвентарь: `{ctx.prefix}inv`*"
+                    ),
+                    color=discord.Color.dark_blue()
+                )
+                reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed=reply)
 
     # Case related commands
     @commands.cooldown(1, 3, commands.BucketType.member)
@@ -978,7 +1059,7 @@ class economy(commands.Cog):
 
     @commands.cooldown(1, 2, commands.BucketType.member)
     @commands.command(
-        aliases=["open-case", "opencase", "oc"],
+        aliases=["open-case", "opencase", "oc", "open"],
         description="вскрывает кейс, при условии, что у Вас есть ключ",
         usage="Название кейса",
         brief="Кейс Одежды" )
@@ -1032,7 +1113,6 @@ class economy(commands.Cog):
                 await ctx.send(embed=reply)
             else:
                 item = customer.open_case(case)
-                await better_add_role(ctx.author, item.role)
                 reply = discord.Embed(
                     title="📦 | Вскрыт кейс",
                     description=f"Шмотка: **{item.name}** • {item.price} {server.cy}",
@@ -1212,12 +1292,12 @@ class economy(commands.Cog):
 
             else:
                 customer.buy(item)
-                await better_add_role(ctx.author, item.role)
                 reply = discord.Embed(
                     title=f"🛒 | Спасибо за покупку!",
                     description=(
                         f"**Приобретено:** {item.name}\n"
                         f"**Цена:** {item.price} {cy}\n\n"
+                        f"**Использовать:** `{p}use {item.name}`\n"
                         f"**Ваш профиль:** `{p}inv`"
                     ),
                     color=colors.emerald

@@ -96,7 +96,11 @@ async def do_roulette(channel):
 
     win_field = random.randint(1, 36)
     win_line = (win_field - 1) % 3 + 1
-    win_col = find_alias(color_fields, win_field)
+    win_col = None
+    for color in color_fields:
+        if win_field in color_fields[color]:
+            win_col = color
+            break
     if win_col is None:
         win_col = "черный"
 
