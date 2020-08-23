@@ -8,7 +8,13 @@ import random
 
 
 app_string = str(os.environ.get('cluster_string'))
-cluster = MongoClient(app_string)
+cluster = None; att = 2
+while cluster is None:
+    try:
+        cluster = MongoClient(app_string)
+    except Exception as e:
+        att += 1
+        print(f"--> functions.py: Retrying to connect to MongoDB (attempt {att}): [{e}]")
 db = cluster["guilds"]
 
 
@@ -572,11 +578,11 @@ class ItemStorage:
         string = string.lower()
         return [case for case in self.cases if string in case.name.lower()]
     # Item creation
-    def create_item(self, item_id: int, name: str):
+    def create_item(self, item_id: int, name: str, price: int=0):
         collection = db["items"]
         collection.update_one(
             {"_id": self.id},
-            {"$set": {f"items.{item_id}": {"name": name}}},
+            {"$set": {f"items.{item_id}": {"name": name, "price": price}}},
             upsert=True
         )
     # Case creation
@@ -668,7 +674,7 @@ class Customer:
         collection = db["customers"]
         collection.update_one(
             {"_id": self.server_id},
-            {"$push": {f"{self.id}.items": item.id, f"{self.id}.keys": {"$each": item.key_for}}},
+            {"$push": {f"{self.id}.items": item.id}},
             upsert=True
         )
 
@@ -688,7 +694,7 @@ class Customer:
             {"_id": self.server_id},
             {
                 "$set": {f"{self.id}.items": self.raw_items},
-                "$inc": {f"{self.id}.balance": item.price // 2}
+                "$inc": {f"{self.id}.balance": item.price}
             }
         )
 
@@ -705,7 +711,6 @@ class Customer:
         item = case.open()
         if item is not None:
             self.keys.remove(case.id)
-            self.keys.extend(item.key_for)
             collection = db["customers"]
             collection.update_one(
                 {"_id": self.server_id},
@@ -718,17 +723,29 @@ class Customer:
         return item
 
     def buy(self, item: Item):
-        self.keys.extend(item.key_for)
         collection = db["customers"]
         collection.update_one(
             {"_id": self.server_id},
             {
                 "$push": {f"{self.id}.items": item.id},
-                "$set": {f"{self.id}.keys": self.keys},
                 "$inc": {f"{self.id}.balance": -item.price}
             },
             upsert=True
         )
+
+    def use_item(self, item: Item):
+        """Doesn't add any roles"""
+        if item.id in self.raw_items:
+            self.raw_items.remove(item.id)
+            collection = db["customers"]
+            collection.update_one(
+                {"_id": self.server_id},
+                {
+                    "$push": {f"{self.id}.keys": {"$each": item.key_for}},
+                    "$set": {f"{self.id}.items": self.raw_items}
+                },
+                upsert=True
+            )
 
 
 class CustomerList:
