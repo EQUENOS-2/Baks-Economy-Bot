@@ -63,6 +63,7 @@ def color_from_string(_color):
             else:
                 _color = Col.from_rgb(*rgb)
     else:
+        _color = _color.strip("#")
         colors = {
             "green": Col.green(), "dark_green": Col.dark_green(),
             "red": Col.red(), "dark_red": Col.dark_red(),
@@ -73,7 +74,10 @@ def color_from_string(_color):
             "white": Col.from_rgb(255, 255, 255), "black": Col.from_rgb(1, 1, 1)
         }
         if _color not in colors:
-            _color = Col.default()
+            try:
+                _color = int(_color, 16)
+            except Exception:
+                _color = Col.default()
         else:
             _color = colors[_color]
     return _color
