@@ -780,6 +780,30 @@ class CustomerList:
             upsert=True
         )
 
+    def reset_money(self):
+        """Requires customers loaded"""
+        collection = db["customers"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$set": {f"{c.id}.balance": 0 for c in self.customers}}
+        )
+
+    def clear_inventories(self):
+        """Requires customers loaded"""
+        collection = db["customers"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$set": {f"{c.id}.items": [] for c in self.customers}}
+        )
+
+    def clear_keys(self):
+        """Requires customers loaded"""
+        collection = db["customers"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$set": {f"{c.id}.keys": [] for c in self.customers}}
+        )
+
 #-------------------------------------+
 #            Custom Checks            |
 #-------------------------------------+

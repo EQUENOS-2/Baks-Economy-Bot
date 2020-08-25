@@ -1376,7 +1376,67 @@ class economy(commands.Cog):
         reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
         await ctx.send(embed=reply)
 
-    
+
+    @commands.cooldown(1, 3, commands.BucketType.member)
+    @commands.check_any(
+        is_moderator(),
+        commands.has_permissions(administrator=True) )
+    @commands.command(
+        aliases=["reset-top", "rt", "resettop"],
+        description="обнуляет баланс всех участников сервера",
+        usage="",
+        brief="" )
+    async def reset_top(self, ctx):
+        clist = CustomerList(ctx.guild.id)
+        clist.reset_money()
+        reply = discord.Embed(
+            title="♻ Выполнено",
+            description=f"Топ участников обнулён",
+            color=discord.Color.dark_green()
+        )
+        reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+        await ctx.send(embed=reply)
+
+
+    @commands.cooldown(1, 3, commands.BucketType.member)
+    @commands.check_any(
+        is_moderator(),
+        commands.has_permissions(administrator=True) )
+    @commands.command(
+        aliases=["clear-inventories", "clear-invs", "clearinvs", "cinvs"],
+        description="очищает инвентари всех участников",
+        usage="",
+        brief="" )
+    async def clear_inventories(self, ctx):
+        clist = CustomerList(ctx.guild.id)
+        clist.clear_inventories()
+        reply = discord.Embed(
+            title="♻ Выполнено",
+            description=f"Инвентари участников очищены.",
+            color=discord.Color.dark_green()
+        )
+        reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+        await ctx.send(embed=reply)
+
+
+    @commands.cooldown(1, 3, commands.BucketType.member)
+    @commands.check_any(
+        is_moderator(),
+        commands.has_permissions(administrator=True) )
+    @commands.command(
+        aliases=["clear-keys", "ck", "clearkeys", "removekeys"] )
+    async def clear_keys(self, ctx):
+        clist = CustomerList(ctx.guild.id)
+        clist.clear_keys()
+        reply = discord.Embed(
+            title="♻ Выполнено",
+            description=f"Ключи отобраны у всех участников.",
+            color=discord.Color.dark_green()
+        )
+        reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+        await ctx.send(embed=reply)
+
+
     @commands.cooldown(1, 3, commands.BucketType.member)
     @commands.command(aliases=["bal", "inventory", "inv"])
     async def balance(self, ctx, *, member: discord.Member=None):
