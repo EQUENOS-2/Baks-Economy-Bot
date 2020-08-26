@@ -205,7 +205,7 @@ class economy(commands.Cog):
         print(">> Mini games cog is loaded")
 
     #========= Commands ==========
-    @commands.cooldown(5, 300, commands.BucketType.member)
+    @commands.cooldown(3, 3600, commands.BucketType.member)
     @commands.command(
         aliases=["r"],
         description="начинает рулетку или участвует в существующей игре.",
@@ -341,7 +341,7 @@ class economy(commands.Cog):
         await ctx.send(embed=reply)
 
 
-    @commands.cooldown(3, 600, commands.BucketType.member)
+    @commands.cooldown(3, 3600, commands.BucketType.member)
     @commands.command(
         aliases=["lot"],
         description="начинает новую лотерею или участвует в существующей.",
@@ -420,7 +420,7 @@ class economy(commands.Cog):
                     await do_lottery(ctx.channel)
 
 
-    @commands.cooldown(5, 600, commands.BucketType.member)
+    @commands.cooldown(3, 3600, commands.BucketType.member)
     @commands.command(
         aliases=["black-jack", "bj"],
         description="начинает игру в Блэк Джек.",
