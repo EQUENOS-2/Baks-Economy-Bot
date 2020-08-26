@@ -75,6 +75,7 @@ bscolors = {
     "0xffcb5aff": "фиолетовый"
 }
 default_cy = "💰"
+default_item_icon_url = ""
 
 
 #-------------------------------------+
@@ -337,6 +338,7 @@ class Item:
         self.id = item_id
         self.server_id = server_id
         self.name = data.get("name", "[Удалённый предмет]")
+        self.icon_url = data.get("icon_url")
         self.price = data.get("price", 0)
         self.role = data.get("role")
         self.key_for = data.get("key_for", [])
@@ -350,6 +352,15 @@ class Item:
         )
         self.name = name
     
+    def set_icon_url(self, url: str):
+        collection = db["items"]
+        collection.update_one(
+            {"_id": self.server_id},
+            {"$set": {f"items.{self.id}.icon_url": url}},
+            upsert=True
+        )
+        self.icon_url = url
+
     def set_price(self, price: int):
         collection = db["items"]
         collection.update_one(
@@ -399,10 +410,13 @@ class Item:
 
 
 class Case:
-    def __init__(self, server_id:int, case_id: int, name: str, loot: list):
+    def __init__(self, server_id:int, case_id: int, loot: list, data: dict={}):
         self.server_id = server_id
         self.id = case_id
-        self.name = name
+        if "loot" in data:
+            data.pop("loot")
+        self.name = data.get("name", "???")
+        self.icon_url = data.get("icon_url")
         self.loot = sorted(loot, key=lambda p: p[1])
     
     @property
@@ -439,6 +453,14 @@ class Case:
         collection.update_one(
             {"_id": self.server_id},
             {"$set": {f"cases.{self.id}.name": name}},
+            upsert=True
+        )
+
+    def set_icon_url(self, url: str):
+        collection = db["items"]
+        collection.update_one(
+            {"_id": self.server_id},
+            {"$set": {f"cases.{self.id}.icon_url": url}},
             upsert=True
         )
 
@@ -550,7 +572,7 @@ class ItemStorage:
                         nonexist.append((f"cases.{cid}.loot.{_id_}", ""))
                     else:
                         loot.append((item, weight))
-                self._cases.append( Case(self.id, int(cid), data.get("name", "???"), loot) )
+                self._cases.append( Case(self.id, int(cid), loot, data) )
             if nonexist != [] and self.items_loaded:
                 collection = db["items"]
                 collection.update_one({"_id": self.id}, {"$unset": dict(nonexist)})

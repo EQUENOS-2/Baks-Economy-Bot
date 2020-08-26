@@ -29,6 +29,11 @@ edit_item_params = {
         "desc": "привязывает роль к шмотке (при покупке будет даваться роль)",
         "usage": "[Название] Роль",
         "example": "[Футблока] @Покупатель"
+    },
+    "icon": {
+        "desc": "настраивает иконку шмотки",
+        "usage": "[Название] (прикрепить картинку или URL)",
+        "example": "[Футболка] (прикрепить картинку или URL)"
     }
 }
 
@@ -89,6 +94,22 @@ def dupe_dump(array: list):
         else:
             out[elem] += 1
     return out
+
+
+def wordlike_rarities(percentages: list):
+    words = []
+    for p in percentages:
+        if 0 < p <= 1:
+            words.append("Легендарный")
+        elif 1 < p <=5:
+            words.append("Мистический")
+        elif 5 < p <= 20:
+            words.append("Эпический")
+        elif 20 < p <= 50:
+            words.append("Редкий")
+        else:
+            words.append("Обычный")
+    return words
 
 
 async def better_add_role(member, role):
@@ -198,19 +219,22 @@ class economy(commands.Cog):
         commands.has_permissions(administrator=True) )
     @commands.command(
         aliases=["edit-item", "ei", "edititem"],
-        description="изменяет некоторые характеристики шмотки. Параметры:\n`name`, `price`, `role`",
+        description="изменяет некоторые характеристики шмотки. Параметры:\n`name`, `price`, `role`, `icon`",
         usage="параметр [Название] Новое значние",
         brief=(
             "name [Старое название] Новое название\n"
             "price [Название] Новая цена\n"
-            "role [Название] Роль") )
+            "role [Название] Роль\n"
+            "icon [Название] (картинка)") )
     async def edit_item(self, ctx, param, *, string=None):
         search, value = unpack_args(string)
+        atts = ctx.message.attachments
         p = ctx.prefix; cmd = str(ctx.invoked_with)
         params = {
             "name": ["название"],
             "price": ["цена"],
-            "role": ["роль"]
+            "role": ["роль"],
+            "icon": ["image", "avatar", "картинка"]
         }
         parameter = find_alias(params, param)
         if parameter is None:
@@ -225,7 +249,7 @@ class economy(commands.Cog):
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
 
-        elif value is None:
+        elif value is None and not (parameter == "icon" and atts != []):
             _help_ = edit_item_params[parameter]
             reply = discord.Embed(
                 title=f"❓ | О параметре `{p}{cmd} {parameter}`",
@@ -278,6 +302,10 @@ class economy(commands.Cog):
                 elif parameter == "role":
                     role = await commands.RoleConverter().convert(ctx, value)
                     item.set_role(role.id)
+                elif parameter == "icon":
+                    if atts != []:
+                        value = atts[0].url
+                    item.set_icon_url(value)
                 
                 if updated:
                     reply = discord.Embed(
@@ -595,6 +623,9 @@ class economy(commands.Cog):
                 title=f"📦 | {item.name}",
                 color=discord.Color.blue()
             )
+
+            if item.icon_url is not None:
+                reply.set_thumbnail(url=item.icon_url)
             reply.add_field(name="Цена", value=f"> {item.price} {server.cy}", inline=False)
             if item.role is not None:
                 reply.add_field(name="Роль", value=f"> <@&{item.role}>", inline=False)
@@ -605,7 +636,12 @@ class economy(commands.Cog):
                         desc += f"> {case.name}\n"
                 reply.add_field(name="Ключи", value=desc, inline=False)
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-            await ctx.send(embed=reply)
+
+            try:
+                await ctx.send(embed=reply)
+            except Exception:
+                del reply.thumbnail
+                await ctx.send(embed=reply)
 
 
     @commands.cooldown(1, 2, commands.BucketType.member)
@@ -920,6 +956,65 @@ class economy(commands.Cog):
         is_moderator(),
         commands.has_permissions(administrator=True) )
     @commands.command(
+        aliases=["case-icon", "caseicon"],
+        description="изменяет иконку кейса.",
+        usage="[Название] (Прикрепить картинку или URL)",
+        brief="[Кейс Одежды] (Картинка или URL)" )
+    async def case_icon(self, ctx, *, string):
+        # Unpacking arguments
+        case_search, url = unpack_args(string)
+        atts = ctx.message.attachments
+        if atts != []:
+            url = atts[0].url
+        if url is None:
+            reply = discord.Embed(
+                title="❌ | Недостаточно аргументов",
+                description="Вы указали название кейса, но не прикрепили **картинку** или **ссылку**, которую вы бы хотели сделать иконкой кейса.",
+                color=discord.Color.dark_red()
+            )
+            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
+        
+        else:
+            # Searching case
+            server = ItemStorage(ctx.guild.id, {"cases": True})
+            _cases = server.search_cases(case_search)
+            case = None
+            if len(_cases) == 0:
+                reply = discord.Embed(
+                    title="❌ | Кейс не найден",
+                    description=f"По поиску '{case_search}' не было найдено кейсов.",
+                    color=discord.Color.dark_red()
+                )
+                reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed=reply)
+            elif len(_cases) < 2:
+                case = _cases[0]
+            else:
+                ind = await self.ask_to_choose([c.name for c in _cases], ctx.channel, ctx.author)
+                if ind is not None:
+                    case = _cases[ind]
+            del _cases
+            if case is not None:
+                # Setting new url
+                case.set_icon_url(url)
+                reply = discord.Embed(
+                    title="📦 | Иконка кейса изменена",
+                    description=(
+                        f"Кейс: **{case.name}**\n"
+                        f"Просмотреть кейс: `{ctx.prefix}case {case.name}`"
+                    ),
+                    color=colors.cardboard
+                )
+                reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed=reply)
+
+
+    @commands.cooldown(1, 3, commands.BucketType.member)
+    @commands.check_any(
+        is_moderator(),
+        commands.has_permissions(administrator=True) )
+    @commands.command(
         aliases=["remove-loot", "removeloot", "reml"],
         description="Убирает шмотку из кейса.",
         usage="[Название кейса] Название_шмотки",
@@ -994,6 +1089,55 @@ class economy(commands.Cog):
 
 
     @commands.cooldown(1, 2, commands.BucketType.member)
+    @commands.check_any(
+        is_moderator(),
+        commands.has_permissions(administrator=True) )
+    @commands.command(
+        aliases=["case-config", "caseconfig", "case-conf"],
+        description="показывает текущие настройки кейса",
+        usage="Название кейса",
+        brief="Кейс Одежды" )
+    async def case_config(self, ctx, *, search):
+        # Searching item
+        server = ItemStorage(ctx.guild.id, {"items": True, "cy": True, "cases": True})
+        cases = server.search_cases(search)
+        case = None
+        if len(cases) == 0:
+            reply = discord.Embed(
+                title="❌ | Кейс не найден",
+                description=f"По поиску '{search}' не было найдено кейсов.",
+                color=discord.Color.dark_red()
+            )
+            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
+        elif len(cases) < 2:
+            case = cases[0]
+        else:
+            ind = await self.ask_to_choose([c.name for c in cases], ctx.channel, ctx.author)
+            if ind is not None:
+                case = cases[ind]
+        del cases
+        if case is not None:
+            # Visualising item
+            prcs = case.percentage
+            desc = ""
+            for i, pair in enumerate(case.loot):
+                desc += f"{pair[0].name} | `Вес: {pair[1]}` | `~{prcs[i]} %`\n"
+            if desc == "":
+                desc = "Нет лута"
+            if case is not None:
+                reply = discord.Embed(
+                    title=f"📦 | {case.name}",
+                    color=colors.cardboard
+                )
+                reply.add_field(name="Шмотка | `Вес` | `Процент (исходя из веса)`", value=desc, inline=False)
+                reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                if case.icon_url is not None:
+                    reply.set_thumbnail(url=case.icon_url)
+                await ctx.send(embed=reply)
+
+
+    @commands.cooldown(1, 2, commands.BucketType.member)
     @commands.command(
         aliases=["view-cases", "all-cases", "case-list"])
     async def cases(self, ctx):
@@ -1041,10 +1185,10 @@ class economy(commands.Cog):
         del cases
         if case is not None:
             # Visualising item
-            percs = case.percentage
+            rars = wordlike_rarities(case.percentage)
             desc = ""
             for i, pair in enumerate(case.loot):
-                desc += f"• {pair[0].name} ~ `{percs[i]} %`\n"
+                desc += f"• {pair[0].name} | `{rars[i]}`\n"
             if desc == "":
                 desc = "Нет лута"
             if case is not None:
@@ -1054,6 +1198,8 @@ class economy(commands.Cog):
                 )
                 reply.add_field(name="Содержимое", value=desc, inline=False)
                 reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                if case.icon_url is not None:
+                    reply.set_thumbnail(url=case.icon_url)
                 await ctx.send(embed=reply)
 
 
