@@ -644,10 +644,10 @@ class economy(commands.Cog):
                 await ctx.send(embed=reply)
 
 
-    @commands.cooldown(1, 2, commands.BucketType.member)
+    @commands.cooldown(1, 62, commands.BucketType.member)
     @commands.command(
         aliases=["sell-item", "sellitem", "sell"],
-        description="продаёт шмотку за пол цены",
+        description="продаёт шмотку",
         usage="Название шмотки",
         brief="Футболка" )
     async def sell_item(self, ctx, *, search):
@@ -679,9 +679,11 @@ class economy(commands.Cog):
             )
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
+        
+        raise CooldownResetSignal()
 
 
-    @commands.cooldown(1, 2, commands.BucketType.member)
+    @commands.cooldown(1, 62, commands.BucketType.member)
     @commands.command(
         aliases=["use-item", "useitem", "use"],
         description="Использует шмотку. При этом начисляются прикреплённые к шмотке ключи и выдаётся роль шмотки (при наличии)",
@@ -736,6 +738,8 @@ class economy(commands.Cog):
                 )
                 reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed=reply)
+        
+        raise CooldownResetSignal()
 
     # Case related commands
     @commands.cooldown(1, 3, commands.BucketType.member)
