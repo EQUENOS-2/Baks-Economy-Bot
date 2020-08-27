@@ -244,8 +244,6 @@ class economy(commands.Cog):
                 await ctx.send(embed=reply)
             
             else:
-                customer.inc_bal(-bet)
-
                 choice = choice.lower()
                 correct_choice = False
 
@@ -288,6 +286,8 @@ class economy(commands.Cog):
                     await ctx.send(embed=reply)
                 
                 else:
+                    customer.inc_bal(-bet)
+                    
                     global roulette_games
                     its_new_game = False
                     now = datetime.datetime.now()

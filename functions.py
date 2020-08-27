@@ -954,7 +954,7 @@ def find_alias(table: dict, value):
         arr = [key, *table[key]]
         for elem in arr:
             if elem.lower().startswith(value):
-                out = elem
+                out = key
                 break
         if out is not None:
             break
