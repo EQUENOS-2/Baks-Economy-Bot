@@ -170,9 +170,17 @@ class Deck:
         self.deck = deck_pairs
     
     def take_card(self):
-        i = random.randint(0, len(self.deck))
+        i = random.randint(0, len(self.deck) - 1)
         card = self.deck[i]
         self.deck.pop(i)
+        return card
+
+    def take_specific_card(self, value):
+        card = None
+        for c in self.deck:
+            if c[1] == value:
+                card = c
+                break
         return card
 
 class Hand:
@@ -515,17 +523,27 @@ class economy(commands.Cog):
                     elif my_hand.value > 21:
                         res = "Проигрыш"
                     else:
-                        moves = 0
+                        # Dealer playing
                         while dealer_hand.value < 21:
-                            if moves > 0:
-                                go_on = random.choice([True, False])
-                            else:
-                                go_on = True
-                            if go_on:
-                                dealer_hand.add_card(d.take_card())
-                                moves += 1
-                            else:
+                            commit_win = random.choice([True, True, False])
+                            if commit_win:
+                                req = 21 - dealer_hand.value
+                                if req > 11:
+                                    req = my_hand.value - dealer_hand.value + 1
+                                if req < 1:
+                                    req = 2
+                                
+                                card = None
+                                while card is None and req > 0:
+                                    card = d.take_specific_card(req)
+                                    req -= 1
+                                if card is None:
+                                    card = d.take_card()
+                                dealer_hand.add_card(card)
                                 break
+                            else:
+                                dealer_hand.add_card(d.take_card())
+                        
                         if dealer_hand.value == my_hand.value:
                             res = "Ничья"
                         elif dealer_hand.value < my_hand.value:
