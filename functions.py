@@ -725,6 +725,20 @@ class Customer:
             }
         )
 
+    def sell_all_items(self):
+        earning = 0
+        for item in self.items:
+            earning += item.price
+        collection = db["customers"]
+        collection.update_one(
+            {"_id": self.server_id},
+            {
+                "$unset": {f"{self.id}.items": ""},
+                "$inc": {f"{self.id}.balance": earning}
+            }
+        )
+        return earning
+
     def remove_keys(self, *case_ids: int):
         for case_id in case_ids:
             self.keys.remove(case_id)

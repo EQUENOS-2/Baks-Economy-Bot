@@ -654,7 +654,7 @@ class economy(commands.Cog):
         aliases=["sell-item", "sellitem", "sell"],
         description="продаёт шмотку",
         usage="Название шмотки Количество (не обязательно)",
-        brief="Футболка\nФтуболка 3" )
+        brief="Футболка\nФтуболка 3\nall (продать всё)" )
     async def sell_item(self, ctx, *, search):
         customer = Customer(ctx.guild.id, ctx.author.id)
         arsearch = search.rsplit(maxsplit=1)
@@ -664,39 +664,51 @@ class economy(commands.Cog):
             search2 = search
             search = arsearch[0]; num = int(arsearch[1])
         items = customer.search_item(search)
-        
-        item = None
-        if len(items) == 0:
+
+        if search.lower() == "all" and items == []:
+            cy = ItemStorage(ctx.guild.id, {"cy": True}).cy
+            earning = customer.sell_all_items()
             reply = discord.Embed(
-                title="❌ | Вещь не найдена",
-                description=f"По запросу '{search}' в Вашем инвентаре не было найдено шмоток.",
-                color=discord.Color.dark_red()
-            )
-            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-            await ctx.send(embed=reply)
-        elif len(items) < 2:
-            item = items[0]
-        else:
-            ind = await self.ask_to_choose(ctx, [it.name for it in items])
-            if ind is not None:
-                item = items[ind]
-        del items
-        # Giving item
-        if item is not None:
-            if item.name.lower() == search2.lower():
-                num = 1
-            
-            x_item = customer.raw_items.count(item.id)
-            if num > x_item:
-                num = x_item
-            customer.sell_item(item, num)
-            reply = discord.Embed(
-                title="📦 | Продана шмотка",
-                description=f"Вы продали **{item.name}** (x{num}) и стали богаче на **{item.price * num}**",
+                title="📦 | Проданы все шмотки",
+                description=f"Вы продали весь свой инвентарь на сумму **{earning}** {cy}",
                 color=discord.Color.dark_blue()
             )
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
+
+        else:
+            item = None
+            if len(items) == 0:
+                reply = discord.Embed(
+                    title="❌ | Вещь не найдена",
+                    description=f"По запросу '{search}' в Вашем инвентаре не было найдено шмоток.",
+                    color=discord.Color.dark_red()
+                )
+                reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed=reply)
+            elif len(items) < 2:
+                item = items[0]
+            else:
+                ind = await self.ask_to_choose(ctx, [it.name for it in items])
+                if ind is not None:
+                    item = items[ind]
+            del items
+            # Giving item
+            if item is not None:
+                if item.name.lower() == search2.lower():
+                    num = 1
+                
+                x_item = customer.raw_items.count(item.id)
+                if num > x_item:
+                    num = x_item
+                customer.sell_item(item, num)
+                reply = discord.Embed(
+                    title="📦 | Продана шмотка",
+                    description=f"Вы продали **{item.name}** (x{num}) и стали богаче на **{item.price * num}**",
+                    color=discord.Color.dark_blue()
+                )
+                reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                await ctx.send(embed=reply)
 
 
     @commands.cooldown(1, 1, commands.BucketType.member)
@@ -1237,9 +1249,9 @@ class economy(commands.Cog):
     @commands.cooldown(1, 2, commands.BucketType.member)
     @commands.command(
         aliases=["open-case", "opencase", "oc", "open"],
-        description="вскрывает кейс, при условии, что у Вас есть ключ",
-        usage="Название кейса",
-        brief="Кейс Одежды" )
+        description="вскрывает кейс(ы), при условии, что у Вас есть ключ(и)",
+        usage="Название кейса Количество (не обязательно)",
+        brief="Кейс Одежды\nКейс Одежды 5" )
     async def open_case(self, ctx, *, search):
         # Searching item
         server = ItemStorage(ctx.guild.id, {"items": True, "cy": True, "cases": True})
