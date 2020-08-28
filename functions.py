@@ -749,29 +749,35 @@ class Customer:
         return item
 
     def buy(self, item: Item, amount=1):
-        collection = db["customers"]
-        collection.update_one(
-            {"_id": self.server_id},
-            {
-                "$push": {f"{self.id}.items": {"$each": amount * [item.id]}},
-                "$inc": {f"{self.id}.balance": - item.price * amount}
-            },
-            upsert=True
-        )
-
-    def use_item(self, item: Item):
-        """Doesn't add any roles"""
-        if item.id in self.raw_items:
-            self.raw_items.remove(item.id)
+        if amount <= 500:
             collection = db["customers"]
             collection.update_one(
                 {"_id": self.server_id},
                 {
-                    "$push": {f"{self.id}.keys": {"$each": item.key_for}},
+                    "$push": {f"{self.id}.items": {"$each": amount * [item.id]}},
+                    "$inc": {f"{self.id}.balance": - item.price * amount}
+                },
+                upsert=True
+            )
+
+    def use_item(self, item: Item, amount=1):
+        """Doesn't add any roles, returns keys earned"""
+        if item.id in self.raw_items:
+            new_keys = amount * item.key_for
+            while amount > 0 and item.id in self.raw_items:
+                amount -= 1
+                self.raw_items.remove(item.id)
+            
+            collection = db["customers"]
+            collection.update_one(
+                {"_id": self.server_id},
+                {
+                    "$push": {f"{self.id}.keys": {"$each": new_keys}},
                     "$set": {f"{self.id}.items": self.raw_items}
                 },
                 upsert=True
             )
+            return new_keys
 
 
 class CustomerList:

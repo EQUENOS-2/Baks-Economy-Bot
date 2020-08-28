@@ -702,11 +702,18 @@ class economy(commands.Cog):
     @commands.command(
         aliases=["use-item", "useitem", "use"],
         description="Использует шмотку. При этом начисляются прикреплённые к шмотке ключи и выдаётся роль шмотки (при наличии)",
-        usage="Название шмотки",
-        brief="Футболка" )
+        usage="Название шмотки Количество (не обязательно)",
+        brief="Футболка\nФутболка 3" )
     async def use_item(self, ctx, *, search):
         customer = Customer(ctx.guild.id, ctx.author.id)
+        arsearch = search.rsplit(maxsplit=1)
+        search2 = ""
+        num = 1
+        if len(arsearch) > 1 and arsearch[1].isdigit():
+            search2 = search
+            search = arsearch[0]; num = int(arsearch[1])
         items = customer.search_item(search)
+
         item = None
         if len(items) == 0:
             reply = discord.Embed(
@@ -725,6 +732,9 @@ class economy(commands.Cog):
         del items
         # Giving item
         if item is not None:
+            if item.name.lower() == search2.lower():
+                num = 1
+            
             if item.key_for == [] and item.role is None:
                 reply = discord.Embed(
                     title="❌ | Вещь не имеет свойств",
@@ -734,18 +744,21 @@ class economy(commands.Cog):
                 reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed=reply)
             else:
-                customer.use_item(item)
+                max_num = customer.raw_items.count(item.id)
+                if num > max_num:
+                    num = max_num
+                new_keys = customer.use_item(item, num)
                 await better_add_role(ctx.author, item.role)
 
                 desc = ""
-                if item.key_for != []:
-                    desc += f"> **Ключей:** {len(item.key_for)} 🔑\n"
+                if new_keys != []:
+                    desc += f"> **Ключей:** {len(new_keys)} 🔑\n"
                 if item.role is not None:
                     desc += f"> **Роль <@&{item.role}>**\n"
                 reply = discord.Embed(
                     title="📦 | Использована шмотка",
                     description=(
-                        f"Вы использовали **{item.name}** и получили\n"
+                        f"Вы использовали **{item.name}** (x{num}) и получили\n"
                         f"{desc}\n"
                         f"*Ваш инвентарь: `{ctx.prefix}inv`*"
                     ),
