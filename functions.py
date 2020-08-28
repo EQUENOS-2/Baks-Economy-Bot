@@ -748,13 +748,13 @@ class Customer:
             )
         return item
 
-    def buy(self, item: Item):
+    def buy(self, item: Item, amount=1):
         collection = db["customers"]
         collection.update_one(
             {"_id": self.server_id},
             {
-                "$push": {f"{self.id}.items": item.id},
-                "$inc": {f"{self.id}.balance": -item.price}
+                "$push": {f"{self.id}.items": {"$each": amount * [item.id]}},
+                "$inc": {f"{self.id}.balance": - item.price * amount}
             },
             upsert=True
         )

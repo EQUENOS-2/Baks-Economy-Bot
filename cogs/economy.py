@@ -663,10 +663,6 @@ class economy(commands.Cog):
             search2 = search
             search = arsearch[0]; num = int(arsearch[1])
         items = customer.search_item(search)
-        #     if len(items) < 1:
-        #         items = customer.search_item(search2)
-        # else:
-        #     items = customer.search_item(search)
         
         item = None
         if len(items) == 0:
@@ -1416,8 +1412,8 @@ class economy(commands.Cog):
     @commands.command(
         aliases=["buy-item"],
         description="осуществляет покупку шмотки.",
-        usage="Название шмотки",
-        brief="Футболка" )
+        usage="Название шмотки Количество (не обязательно)",
+        brief="Футболка\nФутболка 3" )
     async def buy(self, ctx, *, search):
         # Searching item
         server = ItemStorage(ctx.guild.id, {"items": True, "shop": True, "cy": True})
@@ -1426,7 +1422,14 @@ class economy(commands.Cog):
         p = ctx.prefix
         del server
 
+        arsearch = search.rsplit(maxsplit=1)
+        search2 = ""
+        num = 1
+        if len(arsearch) > 1 and arsearch[1].isdigit():
+            search2 = search
+            search = arsearch[0]; num = int(arsearch[1])
         items = shop.search_item(search)
+
         item = None
         if len(items) == 0:
             reply = discord.Embed(
@@ -1446,24 +1449,28 @@ class economy(commands.Cog):
         # Visualising item
         if item is not None:
             del shop
+            if item.name.lower() == search2.lower():
+                num = 1
+            
+            total_cost = num * item.price
             customer = Customer(ctx.guild.id, ctx.author.id)
             # Checking balance
-            if customer.balance < item.price:
+            if customer.balance < total_cost:
                 reply = discord.Embed(
                     title="❌ | Недостаточно денег",
-                    description=f"**{item.name}** стоит **{item.price}** {cy}, а Ваш баланс - **{customer.balance}** {cy}",
+                    description=f"**{item.name}** (x{num}) стоит **{total_cost}** {cy}, а Ваш баланс - **{customer.balance}** {cy}",
                     color=discord.Color.dark_red()
                 )
                 reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed=reply)
 
             else:
-                customer.buy(item)
+                customer.buy(item, num)
                 reply = discord.Embed(
                     title=f"🛒 | Спасибо за покупку!",
                     description=(
-                        f"**Приобретено:** {item.name}\n"
-                        f"**Цена:** {item.price} {cy}\n\n"
+                        f"**Приобретено:** {item.name} (x{num})\n"
+                        f"**Цена:** {total_cost} {cy}\n\n"
                         f"**Использовать:** `{p}use {item.name}`\n"
                         f"**Ваш профиль:** `{p}inv`"
                     ),
