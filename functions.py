@@ -21,6 +21,7 @@ db = cluster["guilds"]
 #-------------------------------------+
 #             Constants               |
 #-------------------------------------+
+inv_capacity = 100
 max_club_roles = 20
 owner_ids = [
     301295716066787332
@@ -438,13 +439,13 @@ class Case:
         string = string.lower()
         return [item for item, w in self.loot if string in item.name.lower()]
 
-    def open(self):
+    def open(self, amount=1):
         try:
             p = []; w = []
             for pair in self.loot:
                 p.append(pair[0])
                 w.append(pair[1])
-            return random.choices(population=p, weights=w)[0]
+            return random.choices(population=p, weights=w, k=amount)
         except Exception:
             return None
 
@@ -733,23 +734,36 @@ class Customer:
             {"$set": {f"{self.id}.keys": self.keys}}
         )
 
-    def open_case(self, case: Case):
-        item = case.open()
-        if item is not None:
-            self.keys.remove(case.id)
-            collection = db["customers"]
-            collection.update_one(
-                {"_id": self.server_id},
-                {
-                    "$push": {f"{self.id}.items": item.id},
-                    "$set": {f"{self.id}.keys": self.keys}
-                },
-                upsert=True
-            )
-        return item
+    def open_case(self, case: Case, amount=1):
+        x_keys = self.keys.count(case.id)
+        inv_weight = len(self.raw_items)
+        if amount > x_keys:
+            amount = x_keys
+        if amount + inv_weight > inv_capacity:
+            amount = inv_capacity - inv_weight
+        
+        if amount > 0:
+            items = case.open(amount)
+            if items is not None:
+                while amount > 0:
+                    amount -= 1
+                    self.keys.remove(case.id)
+                collection = db["customers"]
+                collection.update_one(
+                    {"_id": self.server_id},
+                    {
+                        "$push": {f"{self.id}.items": {"$each": [it.id for it in items]}},
+                        "$set": {f"{self.id}.keys": self.keys}
+                    },
+                    upsert=True
+                )
+            return items
 
     def buy(self, item: Item, amount=1):
-        if amount <= 500:
+        inv_weight = len(self.raw_items)
+        if inv_weight + amount > inv_capacity:
+            amount = inv_capacity - inv_weight
+        if amount > 0:
             collection = db["customers"]
             collection.update_one(
                 {"_id": self.server_id},
@@ -759,9 +773,12 @@ class Customer:
                 },
                 upsert=True
             )
+            return amount
 
     def use_item(self, item: Item, amount=1):
         """Doesn't add any roles, returns keys earned"""
+        if amount < 1:
+            amount = 1
         if item.id in self.raw_items:
             new_keys = amount * item.key_for
             while amount > 0 and item.id in self.raw_items:

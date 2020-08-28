@@ -10,6 +10,7 @@ from functions import timeout_embed, CustomColor
 from failures import CooldownResetSignal
 
 colors = CustomColor()
+inv_capacity = 100
 item_limit = 50
 case_limit = 50
 mkkey_tout = 60
@@ -1243,6 +1244,12 @@ class economy(commands.Cog):
         # Searching item
         server = ItemStorage(ctx.guild.id, {"items": True, "cy": True, "cases": True})
 
+        arsearch = search.rsplit(maxsplit=1)
+        search2 = ""
+        num = 1
+        if len(arsearch) > 1 and arsearch[1].isdigit():
+            search2 = search
+            search = arsearch[0]; num = int(arsearch[1])
         cases = server.search_cases(search)
         case = None
         if len(cases) == 0:
@@ -1261,6 +1268,8 @@ class economy(commands.Cog):
                 case = cases[ind]
         del cases
         if case is not None:
+            if case.name.lower() == search2.lower():
+                num = 1
             # Looking at player's inventory
             customer = Customer(ctx.guild.id, ctx.author.id)
             if case.id not in customer.keys:
@@ -1279,7 +1288,7 @@ class economy(commands.Cog):
                 )
                 reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed=reply)
-            elif len(customer.raw_items) >= item_limit:
+            elif len(customer.raw_items) >= inv_capacity:
                 reply = discord.Embed(
                     title="❌ | Недостаточно места",
                     description=f"Ваш инвентарь переполнен - в нём {item_limit} шмоток. Продайте лишнее и попробуйте снова.",
@@ -1288,10 +1297,15 @@ class economy(commands.Cog):
                 reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed=reply)
             else:
-                item = customer.open_case(case)
+                items = customer.open_case(case, num)
+                items = dupe_dump(items)
+                desc = ""
+                for item, x in items.items():
+                    desc += f"x{x} | **{item.name}** • {item.price} {server.cy}\n"
+
                 reply = discord.Embed(
-                    title="📦 | Вскрыт кейс",
-                    description=f"Шмотка: **{item.name}** • {item.price} {server.cy}",
+                    title=f"📦 | Вскрыт кейс {case.name}",
+                    description=f"**Выпавший дроп:**\n{desc[:2000]}",
                     color=colors.cardboard
                 )
                 reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
@@ -1478,19 +1492,30 @@ class economy(commands.Cog):
                 await ctx.send(embed=reply)
 
             else:
-                customer.buy(item, num)
-                reply = discord.Embed(
-                    title=f"🛒 | Спасибо за покупку!",
-                    description=(
-                        f"**Приобретено:** {item.name} (x{num})\n"
-                        f"**Цена:** {total_cost} {cy}\n\n"
-                        f"**Использовать:** `{p}use {item.name}`\n"
-                        f"**Ваш профиль:** `{p}inv`"
-                    ),
-                    color=colors.emerald
-                )
-                reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
-                await ctx.send(embed=reply)
+                num = customer.buy(item, num)
+                if num is None:
+                    reply = discord.Embed(
+                        title="❌ | Недостаточно места в инвентаре",
+                        description=f"Все ячейки забиты. Всего ячеек: **x{inv_capacity}**",
+                        color=discord.Color.dark_red()
+                    )
+                    reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                    await ctx.send(embed=reply)
+                
+                else:
+                    total_cost = num * item.price
+                    reply = discord.Embed(
+                        title=f"🛒 | Спасибо за покупку!",
+                        description=(
+                            f"**Приобретено:** {item.name} (x{num})\n"
+                            f"**Цена:** {total_cost} {cy}\n\n"
+                            f"**Использовать:** `{p}use {item.name}`\n"
+                            f"**Ваш профиль:** `{p}inv`"
+                        ),
+                        color=colors.emerald
+                    )
+                    reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+                    await ctx.send(embed=reply)
 
 
     @commands.cooldown(1, 2, commands.BucketType.member)
