@@ -149,7 +149,7 @@ class Welcome_card:
     
     def write(self, center, text, font_size, fill=None):
         if self.font is None:
-            self.font = ImageFont.truetype("fonts/vida33pro.otf", size=font_size, encoding="utf-8")
+            self.font = ImageFont.truetype("fonts/MagistralC.otf", size=font_size, encoding="utf-8")
         else:
             self.font.size = font_size
         if self.draw is None:
@@ -164,10 +164,8 @@ class Welcome_card:
 
     def generate(self):
         self.paste_avatar((178, 73), 124)
-        self.write((242, 235), self.name, 37, (255, 108, 0))
-        self.write((240, 233), self.name, 37)
-        self.write((242, 32), str(self.count), 37, (255, 108, 0))
-        self.write((240, 30), str(self.count), 37)
+        self.write((240, 40), self.name, 20, (255, 30, 83))
+        self.write((239, 232), str(self.count), 20, (255, 30, 83))
 
         bimg = BytesIO()
         self.bg.save(bimg, format='PNG')
