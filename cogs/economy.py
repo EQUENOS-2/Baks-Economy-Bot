@@ -1675,9 +1675,18 @@ class economy(commands.Cog):
         customer = Customer(ctx.guild.id, ctx.author.id)
         server = ItemStorage(ctx.guild.id, {"cy": True})
         
-        if amount > customer.balance or amount < 1:
+        if ctx.author.id == member.id:
             reply = discord.Embed(
-                title="💢Ошибка",
+                title="❌ | Ошибка",
+                description="Самому себе платить нельзя.",
+                color=discord.Color.dark_red()
+            )
+            reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+            await ctx.send(embed=reply)
+
+        elif amount > customer.balance or amount < 1:
+            reply = discord.Embed(
+                title="💢 Ошибка",
                 description="На Вашем балансе недостаточно денег.",
                 color=discord.Color.dark_red()
             )

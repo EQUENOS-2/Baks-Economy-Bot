@@ -287,7 +287,7 @@ class economy(commands.Cog):
                 
                 else:
                     customer.inc_bal(-bet)
-                    
+
                     global roulette_games
                     its_new_game = False
                     now = datetime.datetime.now()
@@ -324,7 +324,7 @@ class economy(commands.Cog):
     @commands.cooldown(1, 3600, commands.BucketType.member)
     @commands.command(aliases=["w"])
     async def work(self, ctx):
-        w_range = (100, 300)
+        w_range = (50, 100)
         cur = ItemStorage(ctx.guild.id, {"cy": True}).cy
         player = Customer(ctx.guild.id, ctx.author.id, {})
 
