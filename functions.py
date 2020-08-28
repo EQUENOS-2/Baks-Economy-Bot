@@ -709,14 +709,18 @@ class Customer:
             {"$set": {f"{self.id}.items": self.raw_items}}
         )
     
-    def sell_item(self, item: Item):
-        self.raw_items.remove(item.id)
+    def sell_item(self, item: Item, amount=1):
+        earning = 0
+        while amount > 0 and item.id in self.raw_items:
+            amount -= 1
+            self.raw_items.remove(item.id)
+            earning += item.price
         collection = db["customers"]
         collection.update_one(
             {"_id": self.server_id},
             {
                 "$set": {f"{self.id}.items": self.raw_items},
-                "$inc": {f"{self.id}.balance": item.price}
+                "$inc": {f"{self.id}.balance": earning}
             }
         )
 
@@ -995,6 +999,24 @@ def has_permissions(member, perm_array):
             if perms_owned[perm]:
                 total_needed -= 1
         return total_needed == 0
+
+
+def is_command(client, prefix, text):
+    out = False
+    text = text.split()[0]
+    if text.startswith(prefix):
+        text = text[len(prefix):]
+        for cmd in client.commands:
+            if text == cmd.name or text in cmd.aliases:
+                out = True
+                break
+    return out
+
+
+def carve_cmd(prefix, text):
+    text = text.split()[0]
+    if text.startswith(prefix):
+        return text[len(prefix):]
 
 
 class detect:

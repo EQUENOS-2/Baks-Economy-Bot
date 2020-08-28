@@ -40,7 +40,7 @@ edit_item_params = {
 #----------------------------------------------+
 #                 Functions                    |
 #----------------------------------------------+
-from functions import detect, get_field, try_int, is_moderator, find_alias, antiformat as anf
+from functions import detect, get_field, try_int, is_moderator, find_alias, antiformat as anf, carve_cmd
 from functions import CustomerList, Customer, ItemStorage, Item, Case
 
 
@@ -129,8 +129,11 @@ class economy(commands.Cog):
     #----------------------------------------------+
     #                Cog methods                   |
     #----------------------------------------------+
-    async def ask_to_choose(self, _choice: list, channel, user):
+    async def ask_to_choose(self, ctx, _choice: list):
         """Returns chosen index or None"""
+        interruption_keys = [ctx.command.name, *ctx.command.aliases]
+        channel = ctx.channel; user = ctx.author; prefix = ctx.prefix
+        del ctx
         tout = 60
         desc = ""
         for i, row in enumerate(_choice):
@@ -142,12 +145,12 @@ class economy(commands.Cog):
         emb.set_footer(text=f"{user}", icon_url=f"{user.avatar_url}")
         botmsg = await channel.send(embed=emb)
 
+        def check(m):
+            return ( carve_cmd(prefix, m.content) in interruption_keys or
+            (m.author.id == user.id and m.channel.id == channel.id and m.content.isdigit() and 0 < int(m.content) <= len(_choice)) )
+
         try:
-            msg = await self.client.wait_for(
-                "message",
-                check=lambda m: m.author.id == user.id and m.channel.id == channel.id and m.content.isdigit() and 0 < int(m.content) <= len(_choice),
-                timeout=tout
-            )
+            msg = await self.client.wait_for("message", check=check, timeout=tout)
         except asyncio.TimeoutError:
             await channel.send(embed=timeout_embed(tout, user))
         else:
@@ -155,7 +158,8 @@ class economy(commands.Cog):
                 await botmsg.delete()
             except Exception:
                 pass
-            return int(msg.content) - 1
+            if carve_cmd(prefix, msg.content) not in interruption_keys:
+                return int(msg.content) - 1
 
     #----------------------------------------------+
     #                   Events                     |
@@ -278,7 +282,7 @@ class economy(commands.Cog):
             elif len(items) < 2:
                 item = items[0]
             else:
-                ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+                ind = await self.ask_to_choose(ctx, [it.name for it in items])
                 if ind is not None:
                     item = items[ind]
             
@@ -342,7 +346,7 @@ class economy(commands.Cog):
         elif len(items) < 2:
             item = items[0]
         else:
-            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [it.name for it in items])
             if ind is not None:
                 item = items[ind]
         del items
@@ -388,7 +392,7 @@ class economy(commands.Cog):
         elif len(items) < 2:
             item = items[0]
         else:
-            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [it.name for it in items])
             if ind is not None:
                 item = items[ind]
         del items
@@ -443,7 +447,7 @@ class economy(commands.Cog):
         elif len(items) < 2:
             item = items[0]
         else:
-            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [it.name for it in items])
             if ind is not None:
                 item = items[ind]
         del items
@@ -462,7 +466,7 @@ class economy(commands.Cog):
             elif len(cases) < 2:
                 case = cases[0]
             else:
-                ind = await self.ask_to_choose([c.name for c in cases], ctx.channel, ctx.author)
+                ind = await self.ask_to_choose(ctx, [c.name for c in cases])
                 if ind is not None:
                     case = cases[ind]
             
@@ -506,7 +510,7 @@ class economy(commands.Cog):
         elif len(items) < 2:
             item = items[0]
         else:
-            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [it.name for it in items])
             if ind is not None:
                 item = items[ind]
         del items
@@ -525,7 +529,7 @@ class economy(commands.Cog):
             elif len(cases) < 2:
                 case = cases[0]
             else:
-                ind = await self.ask_to_choose([c.name for c in cases], ctx.channel, ctx.author)
+                ind = await self.ask_to_choose(ctx, [c.name for c in cases])
                 if ind is not None:
                     case = cases[ind]
             
@@ -613,7 +617,7 @@ class economy(commands.Cog):
         elif len(items) < 2:
             item = items[0]
         else:
-            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [it.name for it in items])
             if ind is not None:
                 item = items[ind]
         del items
@@ -644,15 +648,26 @@ class economy(commands.Cog):
                 await ctx.send(embed=reply)
 
 
-    @commands.cooldown(1, 62, commands.BucketType.member)
+    @commands.cooldown(1, 1, commands.BucketType.member)
     @commands.command(
         aliases=["sell-item", "sellitem", "sell"],
         description="продаёт шмотку",
-        usage="Название шмотки",
-        brief="Футболка" )
+        usage="Название шмотки Количество (не обязательно)",
+        brief="Футболка\nФтуболка 3" )
     async def sell_item(self, ctx, *, search):
         customer = Customer(ctx.guild.id, ctx.author.id)
+        arsearch = search.rsplit(maxsplit=1)
+        search2 = ""
+        num = 1
+        if len(arsearch) > 1 and arsearch[1].isdigit():
+            search2 = search
+            search = arsearch[0]; num = int(arsearch[1])
         items = customer.search_item(search)
+        #     if len(items) < 1:
+        #         items = customer.search_item(search2)
+        # else:
+        #     items = customer.search_item(search)
+        
         item = None
         if len(items) == 0:
             reply = discord.Embed(
@@ -665,25 +680,29 @@ class economy(commands.Cog):
         elif len(items) < 2:
             item = items[0]
         else:
-            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [it.name for it in items])
             if ind is not None:
                 item = items[ind]
         del items
         # Giving item
         if item is not None:
-            customer.sell_item(item)
+            if item.name.lower() == search2.lower():
+                num = 1
+            
+            x_item = customer.raw_items.count(item.id)
+            if num > x_item:
+                num = x_item
+            customer.sell_item(item, num)
             reply = discord.Embed(
                 title="📦 | Продана шмотка",
-                description=f"Вы продали **{item.name}** и стали богаче на **{item.price}**",
+                description=f"Вы продали **{item.name}** (x{num}) и стали богаче на **{item.price * num}**",
                 color=discord.Color.dark_blue()
             )
             reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
             await ctx.send(embed=reply)
-        
-        raise CooldownResetSignal()
 
 
-    @commands.cooldown(1, 62, commands.BucketType.member)
+    @commands.cooldown(1, 1, commands.BucketType.member)
     @commands.command(
         aliases=["use-item", "useitem", "use"],
         description="Использует шмотку. При этом начисляются прикреплённые к шмотке ключи и выдаётся роль шмотки (при наличии)",
@@ -704,7 +723,7 @@ class economy(commands.Cog):
         elif len(items) < 2:
             item = items[0]
         else:
-            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [it.name for it in items])
             if ind is not None:
                 item = items[ind]
         del items
@@ -738,8 +757,6 @@ class economy(commands.Cog):
                 )
                 reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
                 await ctx.send(embed=reply)
-        
-        raise CooldownResetSignal()
 
     # Case related commands
     @commands.cooldown(1, 3, commands.BucketType.member)
@@ -800,7 +817,7 @@ class economy(commands.Cog):
         elif len(cases) < 2:
             case = cases[0]
         else:
-            ind = await self.ask_to_choose([c.name for c in cases], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [c.name for c in cases])
             if ind is not None:
                 case = cases[ind]
         del cases
@@ -857,7 +874,7 @@ class economy(commands.Cog):
             elif len(_cases) < 2:
                 case = _cases[0]
             else:
-                ind = await self.ask_to_choose([c.name for c in _cases], ctx.channel, ctx.author)
+                ind = await self.ask_to_choose(ctx, [c.name for c in _cases])
                 if ind is not None:
                     case = _cases[ind]
             del _cases
@@ -876,7 +893,7 @@ class economy(commands.Cog):
                 elif len(items) < 2:
                     item = items[0]
                 else:
-                    ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+                    ind = await self.ask_to_choose(ctx, [it.name for it in items])
                     if ind is not None:
                         item = items[ind]
                 del items
@@ -936,7 +953,7 @@ class economy(commands.Cog):
             elif len(_cases) < 2:
                 case = _cases[0]
             else:
-                ind = await self.ask_to_choose([c.name for c in _cases], ctx.channel, ctx.author)
+                ind = await self.ask_to_choose(ctx, [c.name for c in _cases])
                 if ind is not None:
                     case = _cases[ind]
             del _cases
@@ -995,7 +1012,7 @@ class economy(commands.Cog):
             elif len(_cases) < 2:
                 case = _cases[0]
             else:
-                ind = await self.ask_to_choose([c.name for c in _cases], ctx.channel, ctx.author)
+                ind = await self.ask_to_choose(ctx, [c.name for c in _cases])
                 if ind is not None:
                     case = _cases[ind]
             del _cases
@@ -1054,7 +1071,7 @@ class economy(commands.Cog):
             elif len(_cases) < 2:
                 case = _cases[0]
             else:
-                ind = await self.ask_to_choose([c.name for c in _cases], ctx.channel, ctx.author)
+                ind = await self.ask_to_choose(ctx, [c.name for c in _cases])
                 if ind is not None:
                     case = _cases[ind]
             del _cases
@@ -1073,7 +1090,7 @@ class economy(commands.Cog):
                 elif len(items) < 2:
                     item = items[0]
                 else:
-                    ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+                    ind = await self.ask_to_choose(ctx, [it.name for it in items])
                     if ind is not None:
                         item = items[ind]
                 del items
@@ -1117,7 +1134,7 @@ class economy(commands.Cog):
         elif len(cases) < 2:
             case = cases[0]
         else:
-            ind = await self.ask_to_choose([c.name for c in cases], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [c.name for c in cases])
             if ind is not None:
                 case = cases[ind]
         del cases
@@ -1183,7 +1200,7 @@ class economy(commands.Cog):
         elif len(cases) < 2:
             case = cases[0]
         else:
-            ind = await self.ask_to_choose([c.name for c in cases], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [c.name for c in cases])
             if ind is not None:
                 case = cases[ind]
         del cases
@@ -1230,7 +1247,7 @@ class economy(commands.Cog):
         elif len(cases) < 2:
             case = cases[0]
         else:
-            ind = await self.ask_to_choose([c.name for c in cases], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [c.name for c in cases])
             if ind is not None:
                 case = cases[ind]
         del cases
@@ -1297,7 +1314,7 @@ class economy(commands.Cog):
         elif len(items) < 2:
             item = items[0]
         else:
-            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [it.name for it in items])
             if ind is not None:
                 item = items[ind]
         del items
@@ -1348,7 +1365,7 @@ class economy(commands.Cog):
         elif len(items) < 2:
             item = items[0]
         else:
-            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [it.name for it in items])
             if ind is not None:
                 item = items[ind]
         del items
@@ -1422,7 +1439,7 @@ class economy(commands.Cog):
         elif len(items) < 2:
             item = items[0]
         else:
-            ind = await self.ask_to_choose([it.name for it in items], ctx.channel, ctx.author)
+            ind = await self.ask_to_choose(ctx, [it.name for it in items])
             if ind is not None:
                 item = items[ind]
         del items
@@ -1495,7 +1512,6 @@ class economy(commands.Cog):
             
             reply.set_footer(text=f"Стр. {page} / {total_pages} | {ctx.author}", icon_url=ctx.author.avatar_url)
             await ctx.send(embed=reply)
-
 
     # Money related commands
     @commands.cooldown(1, 3, commands.BucketType.member)
