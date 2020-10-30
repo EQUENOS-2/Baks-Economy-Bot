@@ -5,3 +5,4 @@ pymongo
 dnspython
 discord.py
 asyncio
+memory_profiler
