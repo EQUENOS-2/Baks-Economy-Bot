@@ -15,14 +15,13 @@ def prefix(client, message):
         p = ".."
     return p
 
-intents = discord.Intents.all()
-client = commands.Bot(command_prefix=prefix, intents=intents)
+client = commands.Bot(command_prefix=prefix)
 client.remove_command("help")
 
 token = str(os.environ.get("bot_token"))
 
 #========== Functions ===========
-from functions import display_perms, vis_aliases, visual_delta, owner_ids, find_alias, quote_list
+from functions import display_perms, vis_aliases, visual_delta, owner_ids, find_alias, quote_list, is_command
 
 def has_instance(_list, _class):
     has = False
@@ -42,6 +41,12 @@ async def on_ready():
     )
 
 #========== Commands ============
+@commands.is_owner()
+@client.command()
+async def test(ctx, *, text):
+    await ctx.send(is_command(client, ctx.prefix, text))
+
+
 @client.command(aliases=["lo"])
 async def logout(ctx):
     if ctx.author.id in owner_ids:
@@ -85,21 +90,23 @@ async def help(ctx, *, section=None):
     p = ctx.prefix
     sections = {
         "settings": ["настройки"],
-        "moderation": ["модерация"],
+        #"moderation": ["модерация"],
         "economy": ["экономика"],
-        "games": ["игры", "казино"],
+        #"games": ["игры", "казино"],
         "forms": ["формы", "анкеты"],
         "utils": ["utilities", "утилиты"],
-        "brawlstars": ["brawl", "bs", "бравл старс", "бс", "brawl stars"]
+        "voices": ["приваты", "войсы"]
+        #"brawlstars": ["brawl", "bs", "бравл старс", "бс", "brawl stars"]
     }
     titles = {
         "settings": "О настройках",
-        "moderation": "О модерации",
+        #"moderation": "О модерации",
         "economy": "Об экономике",
-        "games": "Об играх",
+        #"games": "Об играх",
         "forms": "Об анкете сервера",
         "utils": "О полезных командах",
-        "brawlstars": "Интеграция Brawl Stars"
+        "voices": "О приватах"
+        #"brawlstars": "Интеграция Brawl Stars"
     }
     desc = ""
     for sec in titles:
