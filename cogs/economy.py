@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
-import asyncio, os, datetime
+import asyncio, os, datetime, random
 
 #----------------------------------------------+
 #                 Constants                    |
@@ -37,6 +37,15 @@ edit_item_params = {
         "example": "[Футболка] (прикрепить картинку или URL)"
     }
 }
+work_replies = [
+    "Вы провели долгие часы на заводе, заработав {earning}",
+    "Поработав 8 часов в офисе, Вы заработали {earning}",
+    "За волонтёрскую деятельность Вам заплатили {earning}",
+    "Фриланс сегодня принёс Вам {earning}",
+    "Вы продали несколько товаров на алиэкспрессе в сумме на {earning}",
+    "Вы порылись в карманах зимней куртки. {earning}."
+]
+
 
 #----------------------------------------------+
 #                 Functions                    |
@@ -1657,6 +1666,26 @@ class economy(commands.Cog):
             color=discord.Color.dark_green()
         )
         reply.set_footer(text=f"{ctx.author}", icon_url=f"{ctx.author.avatar_url}")
+        await ctx.send(embed=reply)
+
+
+    @commands.cooldown(1, 3600, commands.BucketType.member)
+    @commands.command(aliases=["w"])
+    async def work(self, ctx):
+        w_range = (100, 200)
+        cur = ItemStorage(ctx.guild.id, {"cy": True}).cy
+        player = Customer(ctx.guild.id, ctx.author.id, {})
+
+        summ = random.randint(*w_range)
+        text = random.choice(work_replies).replace("{earning}", f"{summ} {cur}")
+
+        player.inc_bal(summ)
+        
+        reply = discord.Embed(
+            title=f"✅ {ctx.author}",
+            description=text,
+            color=discord.Color.dark_green()
+        )
         await ctx.send(embed=reply)
 
 
