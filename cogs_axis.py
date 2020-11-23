@@ -15,7 +15,8 @@ def prefix(client, message):
         p = ".."
     return p
 
-client = commands.Bot(command_prefix=prefix)
+intents = discord.Intents.all()
+client = commands.Bot(command_prefix=prefix, intents=intents)
 client.remove_command("help")
 
 token = str(os.environ.get("bot_token"))
