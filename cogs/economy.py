@@ -11,8 +11,8 @@ from failures import CooldownResetSignal
 
 colors = CustomColor()
 inv_capacity = 100
-item_limit = 50
-case_limit = 50
+item_limit = 500
+case_limit = 500
 mkkey_tout = 60
 name_limit = 52
 edit_item_params = {
