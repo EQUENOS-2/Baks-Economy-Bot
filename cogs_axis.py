@@ -22,7 +22,8 @@ client.remove_command("help")
 token = str(os.environ.get("bot_token"))
 
 #========== Functions ===========
-from functions import display_perms, vis_aliases, visual_delta, owner_ids, find_alias, quote_list, is_command
+from functions import display_perms, vis_aliases, visual_delta, owner_ids, find_alias, quote_list, is_command, antiformat as anf
+from custom_converters import BadInt, BadTimedelta
 
 def has_instance(_list, _class):
     has = False
@@ -181,33 +182,31 @@ async def on_command_error(ctx, error):
         await ctx.send(embed=cool_notify)
     
     elif isinstance(error, commands.BadArgument):
-        kw, search, rest = str(error).split('"', maxsplit=2)
-        kw = kw.lower().strip()
-        search = search.strip()
+        if isinstance(error, commands.MemberNotFound):
+            desc = f"Участник **{anf(error.argument)}** не был найден."
+        elif isinstance(error, commands.RoleNotFound):
+            desc = f"Роль **{anf(error.argument)}** не была найдена."
+        elif isinstance(error, commands.ChannelNotFound):
+            desc = f"Канал **{anf(error.argument)}** не был найден."
+        elif isinstance(error, BadInt):
+            desc = f"Аргумент **{error.argument}** должен быть целым числом, например `7`."
+        elif isinstance(error, BadTimedelta):
+            desc = (
+                f"Аргумент **{error.argument}** не соответствует формату промежутка времени.\n"
+                "Шаблон: `5h30m15s` Здесь `5h` означает 5 часов, `30m` означает 30 минут, а `15s` - 15 секунд.\nМожно не писать 0h, 0m или 0s"
+            )
+        else:
+            desc = "Введённый аргумент не соответствует требуемому формату."
         
-        del rest
-        if "convert" in kw:
-            kw = search
-        translations = {
-            "user": f"По запросу {search} не было найдено пользователей.",
-            "member": f"По запросу {search} не было найдено участников.",
-            "role": f"По запросу {search} не было найдено ролей.",
-            "channel": f"По запросу {search} не было найдено каналов.",
-            "int": f"Пожалуйста, введите целое число."
-        }
-        desc = translations.get(kw, "Введённый аргумент не соответствует требуемому формату.")
-
-        reply = discord.Embed(
-            title="❌ Неверный аргумент",
-            description=desc,
-            color=discord.Color.dark_red()
-        )
-        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+        reply = discord.Embed(color=discord.Color.dark_red())
+        reply.title = "❌ | Что-то введено неправильно"
+        reply.description = desc
+        reply.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar_url)
         await ctx.send(embed=reply)
 
         try:
             ctx.command.reset_cooldown(ctx)
-        except Exception:
+        except:
             pass
     
     elif isinstance(error, commands.CheckAnyFailure):
