@@ -24,7 +24,8 @@ async def process_mute_role(server, name):
                 ovw = vco
             else:
                 ovw = catego
-            await c.edit(overwrites={role: ovw})
+            ovw = {**c.overwrites, role: ovw}
+            await c.edit(overwrites=ovw)
     return role
 
 
