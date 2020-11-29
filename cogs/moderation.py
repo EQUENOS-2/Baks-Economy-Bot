@@ -79,7 +79,7 @@ class moderation(commands.Cog):
         tempMuteEmbed.set_author(name=f" [🔇] {member} был замучен на {vis_delta(time)}")
         tempMuteEmbed.set_footer(text= f"Выдал: {ctx.author}", icon_url = ctx.author.avatar_url )
 
-        await ctx.channel.send(embed=tempMuteEmbed)
+        await ctx.send(embed=tempMuteEmbed)
 
         tempMuteDM = discord.Embed(color=0xFFA500, description=f"**[🔇]** Вы были замучены на сервере.")
         tempMuteDM.set_thumbnail(url=f"{ctx.guild.icon_url}"), tempMuteDM.set_footer(text= "Мут был выдан: {} " .format( ctx.author.name  ), icon_url = ctx.author.avatar_url )
@@ -87,17 +87,22 @@ class moderation(commands.Cog):
         tempMuteDM.add_field(name="Продолжительность:", value=vis_delta(time))
 
         userToDM = self.client.get_user(member.id)
-        await userToDM.send(embed=tempMuteDM)
+        try:
+            await userToDM.send(embed=tempMuteDM)
+        except:
+            pass
         await asyncio.sleep(time.total_seconds())
-        await member.remove_roles(muteRole)
+        try:
+            await member.remove_roles(muteRole)
 
+            unMuteEmbed = discord.Embed(color=0xFFA500, description="Время мута истекло, вы были размучены.")
+            #unMuteEmbed.set_author(name=f"🔊UNMUTE] {member}", icon_url=f"{member.avatar_url}")
+            #unMuteEmbed.add_field(name="User", value=f"{member.mention}")
+            unMuteEmbed.set_footer(text=f"Сервер {ctx.guild}", icon_url=ctx.guild.icon_url )
 
-        unMuteEmbed = discord.Embed(color=0xFFA500, description="Время мута истекло, вы были размучены.")
-        #unMuteEmbed.set_author(name=f"🔊UNMUTE] {member}", icon_url=f"{member.avatar_url}")
-        #unMuteEmbed.add_field(name="User", value=f"{member.mention}")
-        unMuteEmbed.set_footer(text=f"Сервер {ctx.guild}", icon_url=ctx.guild.icon_url )
-
-        await member.send(embed=unMuteEmbed)
+            await member.send(embed=unMuteEmbed)
+        except:
+            pass
     
     #----------------------------------------------+
     #                   Errors                     |
