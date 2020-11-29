@@ -52,6 +52,7 @@ work_replies = [
 #----------------------------------------------+
 from functions import detect, get_field, try_int, is_moderator, find_alias, antiformat as anf, carve_cmd
 from functions import CustomerList, Customer, ItemStorage, Item, Case
+from custom_converters import IntConverter
 
 
 def isfloat(string: str):
@@ -191,7 +192,7 @@ class economy(commands.Cog):
         description="создаёт новую шмотку на сервере",
         usage="Цена Название",
         brief="100 Фтуболка" )
-    async def create_item(self, ctx, price: int, *, name):
+    async def create_item(self, ctx, price: IntConverter, *, name):
         server = ItemStorage(ctx.guild.id, {"items": True, "cy": True})
         if len(server.items) >= item_limit:
             reply = discord.Embed(
@@ -568,7 +569,7 @@ class economy(commands.Cog):
     @commands.cooldown(1, 2, commands.BucketType.member)
     @commands.command(
         aliases=["view-items", "all-items", "item-list"])
-    async def items(self, ctx, page: int=1):
+    async def items(self, ctx, page: IntConverter=1):
         interval = 10
         server = ItemStorage(ctx.guild.id, {"items": True, "cy": True})
         total_items = len(server.items)
@@ -1542,7 +1543,7 @@ class economy(commands.Cog):
     @commands.cooldown(1, 2, commands.BucketType.member)
     @commands.command(
         aliases=["server-shop"] )
-    async def shop(self, ctx, page: int=1):
+    async def shop(self, ctx, page: IntConverter=1):
         interval = 10
         server = ItemStorage(ctx.guild.id, {"items": True, "shop": True, "cy": True})
         shop = server.shop
@@ -1589,7 +1590,7 @@ class economy(commands.Cog):
         description="изменяет баланс участника",
         usage="Кол-во @Участник",
         brief="-6 @User#1234" )
-    async def change_bal(self, ctx, amount: int, *, member: discord.Member=None):
+    async def change_bal(self, ctx, amount: IntConverter, *, member: discord.Member=None):
         if member is None:
             member = ctx.author
         
@@ -1722,7 +1723,7 @@ class economy(commands.Cog):
 
     @commands.cooldown(1, 3, commands.BucketType.member)
     @commands.command(aliases=["leaderboard", "leaders", "lb"])
-    async def top(self, ctx, page: int=1):
+    async def top(self, ctx, page: IntConverter=1):
         interval = 10
         member_list = CustomerList(ctx.guild.id).customers
         cur = ItemStorage(ctx.guild.id, {"cy": True}).cy
@@ -1773,7 +1774,7 @@ class economy(commands.Cog):
         description="переводит деньги на счёт участника",
         usage="Кол-во @Участник",
         brief="60 @User#1234" )
-    async def pay(self, ctx, amount: int, *, member: discord.Member):
+    async def pay(self, ctx, amount: IntConverter, *, member: discord.Member):
         customer = Customer(ctx.guild.id, ctx.author.id)
         server = ItemStorage(ctx.guild.id, {"cy": True})
         

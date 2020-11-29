@@ -13,6 +13,7 @@ db = cluster["tournament_tool_db"]
 #                 Functions                    |
 #----------------------------------------------+
 from functions import VoiceButton, VConfig, TemporaryVoices, antiformat as anf
+from custom_converters import IntConverter
 
 
 class voices(commands.Cog):
@@ -143,7 +144,7 @@ class voices(commands.Cog):
         description="создаёт приват на указанное число людей. У создателя будут права на кик из войса и его переименование.",
         usage="Лимит-людей Название",
         brief="4 Комната профессионалов" )
-    async def create(self, ctx, limit: int, *, name=None):
+    async def create(self, ctx, limit: IntConverter, *, name=None):
         isadm = ctx.author.guild_permissions.administrator
         channels = VConfig(ctx.guild.id).room_creation_channel_ids
 
@@ -213,7 +214,7 @@ class voices(commands.Cog):
         description="создаёт канал-кнопку, при нажатии на которую будут создаваться приватные голосовые каналы.",
         usage="Лимит-людей Название приватов",
         brief="4 Комната на четверых" )
-    async def voice_button(self, ctx, limit: int, *, name):
+    async def voice_button(self, ctx, limit: IntConverter, *, name):
         if not (0 < limit < 100):
             reply = discord.Embed(
                 title="❌ | Неверный лимит",
