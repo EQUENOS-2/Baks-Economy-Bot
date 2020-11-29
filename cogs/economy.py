@@ -1582,9 +1582,7 @@ class economy(commands.Cog):
 
     # Money related commands
     @commands.cooldown(1, 3, commands.BucketType.member)
-    @commands.check_any(
-        is_moderator(),
-        commands.has_permissions(administrator=True) )
+    @commands.has_permissions(administrator=True)
     @commands.command(
         aliases=["change-bal", "cb", "change", "add-money", "change-balance"],
         description="изменяет баланс участника",
