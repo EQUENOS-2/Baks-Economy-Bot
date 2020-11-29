@@ -50,4 +50,4 @@ class IntConverter(Converter):
         try:
             return int(argument)
         except:
-            raise BadTimedelta(argument)
+            raise BadInt(argument)
