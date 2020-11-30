@@ -1019,6 +1019,7 @@ class MuteModel:
                 {"_id": self.server_id, f"mutes.{self.id}": {"$exists": True}},
                 projection={f"mutes.{self.id}": True}
             )
+            if data is None: data = {}
         self.ends_at = data.get("ends_at", datetime.utcnow()) # UTC
         self.reason = data.get("reason")
         if self.reason is None: self.reason = "Не указана"
@@ -1045,6 +1046,7 @@ class MuteList:
                 {"_id": self.id},
                 projection=projection
             )
+            if data is None: data = {}
         if before is None:
             self.__mutes = data.get("mutes", {})
         else:
