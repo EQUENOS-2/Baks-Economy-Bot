@@ -78,10 +78,14 @@ class moderation(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         print(f">> Moderation cog is loaded")
-        # Refreshing mutes
-        for mutelist in get_saved_mutes(MST.last_at + MST.interval): # Gets all closest mutes
-            for mm in mutelist.mutes:
-                self.client.loop.create_task(self.process_unmute(mm))
+        # Refreshing mutes every X hours
+        while True:
+            print(f"MuteSlicer: {MST.last_at}")
+            for mutelist in get_saved_mutes(MST.last_at + MST.interval): # Gets all closest mutes
+                for mm in mutelist.mutes:
+                    self.client.loop.create_task(self.process_unmute(mm))
+            await asyncio.sleep(MST.next_in.total_seconds())
+            MST.update()
 
     #----------------------------------------------+
     #                  Commands                    |
