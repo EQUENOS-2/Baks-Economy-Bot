@@ -63,6 +63,10 @@ class moderation(commands.Cog):
                 await member.remove_roles(role)
             except:
                 pass
+        try:
+            await member.edit(mute=False)
+        except:
+            pass
         # Notifications
         reply = discord.Embed(color=0x2b2b2b, description="Время мута истекло, Вы были размучены.")
         reply.set_footer(text=f"Сервер {guild}", icon_url=guild.icon_url )
@@ -125,6 +129,7 @@ class moderation(commands.Cog):
                 muteRole = await process_mute_role(ctx.guild, "Мут")
                 await member.add_roles(muteRole)
                 mutelist.add(member.id, time, ctx.author.id, reason)
+                await member.edit(mute=True)
             except:
                 pass
         
@@ -155,6 +160,7 @@ class moderation(commands.Cog):
             try:
                 mutelist.remove(member.id)
                 await member.remove_roles(muteRole)
+                await member.edit(mute=False)
 
                 unMuteEmbed = discord.Embed(color=0x2b2b2b, description="Время мута истекло, Вы были размучены.")
                 unMuteEmbed.set_footer(text=f"Сервер {ctx.guild}", icon_url=ctx.guild.icon_url )
@@ -175,13 +181,18 @@ class moderation(commands.Cog):
     async def unmute(self, ctx, *, member: discord.Member):
         mm = MuteModel(ctx.guild.id, member.id)
         mm.end()
-        # Role manipulations
+        # Role & mute manipulations
+        try:
+            await member.edit(mute=False)
+        except:
+            pass
         role = discord.utils.get(ctx.guild.roles, name=mute_role_name)
-        if role is not None and role in member.roles:
+        if role in member.roles:
             try:
                 await member.remove_roles(role)
             except:
                 pass
+
         elif mm.time_remaining.total_seconds() == 0:
             reply = discord.Embed(color=discord.Color.red())
             reply.title = "❌ | Ошибка"
