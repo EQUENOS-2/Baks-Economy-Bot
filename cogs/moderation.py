@@ -2,13 +2,28 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
 import asyncio
+from datetime import datetime, timedelta
 
 #----------------------------------------------+
 #                 Functions                    |
 #----------------------------------------------+
-from functions import is_moderator, visual_delta as vis_delta
-from custom_converters import TimedeltaConverter
+from functions import is_moderator, visual_delta as vis_delta, MuteList, MuteModel, get_saved_mutes, antiformat as anf, rus_timestamp
+from custom_converters import TimedeltaConverter, IntConverter
 
+class MuteSliceTimer:
+    def __init__(self):
+        self.last_at = datetime.utcnow()
+        self.interval = timedelta(hours=1)
+    @property
+    def next_in(self):
+        next_at = self.last_at + self.interval
+        now = datetime.utcnow()
+        return next_at - now if next_at > now else timedelta(seconds=0)
+
+    def update(self):
+        self.last_at = datetime.utcnow()
+MST = MuteSliceTimer()
+mute_role_name = "Мут"
 
 async def process_mute_role(server, name):
     role = discord.utils.get(server.roles, name=name)
@@ -34,11 +49,39 @@ class moderation(commands.Cog):
         self.client = client
 
     #----------------------------------------------+
+    #                  Methods                     |
+    #----------------------------------------------+
+    async def process_unmute(self, mutemodel: MuteModel):
+        await asyncio.sleep(mutemodel.time_remaining.total_seconds())
+        mutemodel.end()
+        # Role manipulations
+        guild = self.client.get_guild(mutemodel.server_id)
+        role = discord.utils.get(guild.roles, name=mute_role_name)
+        member = guild.get_member(mutemodel.id)
+        if member is not None and role is not None and role in member.roles:
+            try:
+                await member.remove_roles(role)
+            except:
+                pass
+        # Notifications
+        reply = discord.Embed(color=0x2b2b2b, description="Время мута истекло, Вы были размучены.")
+        reply.set_footer(text=f"Сервер {guild}", icon_url=guild.icon_url )
+        try:
+            await member.send(embed=reply)
+        except:
+            pass
+        return
+
+    #----------------------------------------------+
     #                   Events                     |
     #----------------------------------------------+
     @commands.Cog.listener()
     async def on_ready(self):
         print(f">> Moderation cog is loaded")
+        # Refreshing mutes
+        for mutelist in get_saved_mutes(MST.last_at + MST.interval): # Gets all closest mutes
+            for mm in mutelist.mutes:
+                self.client.loop.create_task(self.process_unmute(mm))
 
     #----------------------------------------------+
     #                  Commands                    |
@@ -66,15 +109,23 @@ class moderation(commands.Cog):
     @commands.check_any(
         is_moderator(),
         commands.has_permissions(administrator=True) )
-    @commands.command()
+    @commands.command(
+        description="мутит пользователя во всех чатах",
+        usage="@Участник Время Причина(не обязательно)",
+        brief="@User#1234 30m Спам в чате" )
     @commands.cooldown(1, 2, commands.BucketType.member)
     async def mute(self, ctx, member: discord.Member, time: TimedeltaConverter, *, reason=None):
-        if reason is None:
-            reason = "Без причины"
-        
+        mutelist = MuteList(ctx.guild.id, data={})
         async with ctx.typing():
-            muteRole = await process_mute_role(ctx.guild, "Мут")
-            await member.add_roles(muteRole)
+            try:
+                muteRole = await process_mute_role(ctx.guild, "Мут")
+                await member.add_roles(muteRole)
+                mutelist.add(member.id, time, ctx.author.id, reason)
+            except:
+                pass
+        
+        if reason is None:
+            reason = "Не указана"
 
         tempMuteEmbed = discord.Embed(colour=0xFFA500, description=f"**Причина:** {reason}")
         tempMuteEmbed.set_author(name=f" [🔇] {member} был замучен на {vis_delta(time)}")
@@ -82,8 +133,8 @@ class moderation(commands.Cog):
 
         await ctx.send(embed=tempMuteEmbed)
 
-        tempMuteDM = discord.Embed(color=0xFFA500, description=f"**[🔇]** Вы были замучены на сервере.")
-        tempMuteDM.set_thumbnail(url=f"{ctx.guild.icon_url}"), tempMuteDM.set_footer(text= "Мут был выдан: {} " .format( ctx.author.name  ), icon_url = ctx.author.avatar_url )
+        tempMuteDM = discord.Embed(color=0x2b2b2b, description=f"**[🔇]** Вы были замучены на сервере.")
+        tempMuteDM.set_thumbnail(url=f"{ctx.guild.icon_url}"), tempMuteDM.set_footer(text=f"Модератор: {ctx.author}", icon_url=ctx.author.avatar_url )
         tempMuteDM.add_field(name="Причина:", value=f"{reason}")
         tempMuteDM.add_field(name="Продолжительность:", value=vis_delta(time))
 
@@ -92,19 +143,99 @@ class moderation(commands.Cog):
             await userToDM.send(embed=tempMuteDM)
         except:
             pass
-        await asyncio.sleep(time.total_seconds())
+        # Mute length classification
+        if time >= MST.next_in:
+            return # Happens not to collide with mute slicer
+        else:
+            await asyncio.sleep(time.total_seconds())
+            try:
+                mutelist.remove(member.id)
+                await member.remove_roles(muteRole)
+
+                unMuteEmbed = discord.Embed(color=0x2b2b2b, description="Время мута истекло, Вы были размучены.")
+                unMuteEmbed.set_footer(text=f"Сервер {ctx.guild}", icon_url=ctx.guild.icon_url )
+
+                await member.send(embed=unMuteEmbed)
+            except:
+                pass
+    
+
+    @commands.command(
+        description="досрочно снимает мут",
+        usage="Участник",
+        brief="User#1234" )
+    @commands.check_any(
+        is_moderator(),
+        commands.has_permissions(administrator=True) )
+    @commands.cooldown(1, 2, commands.BucketType.member)
+    async def unmute(self, ctx, *, member: discord.Member):
+        mm = MuteModel(ctx.guild.id, member.id)
+        mm.end()
+        # Role manipulations
+        role = discord.utils.get(ctx.guild.roles, name=mute_role_name)
+        if role is not None and role in member.roles:
+            try:
+                await member.remove_roles(role)
+            except:
+                pass
+        elif mm.time_remaining.total_seconds() == 0:
+            reply = discord.Embed(color=discord.Color.red())
+            reply.title = "❌ | Ошибка"
+            reply.description = f"Участник **{anf(member)}** не замьючен."
+            reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+            await ctx.send(embed=reply)
+            return #
+        
+        reply = discord.Embed(color=discord.Color.green())
+        reply.title = "🔉 | Участник досрочно размучен"
+        reply.description = f"Участник **{anf(member)}** был досрочно размучен."
+        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
+
+        reply = discord.Embed(color=0x2b2b2b, description="Время мута истекло, Вы были размучены.")
+        reply.set_footer(text=f"Сервер {ctx.guild}", icon_url=ctx.guild.icon_url )
         try:
-            await member.remove_roles(muteRole)
-
-            unMuteEmbed = discord.Embed(color=0xFFA500, description="Время мута истекло, вы были размучены.")
-            #unMuteEmbed.set_author(name=f"🔊UNMUTE] {member}", icon_url=f"{member.avatar_url}")
-            #unMuteEmbed.add_field(name="User", value=f"{member.mention}")
-            unMuteEmbed.set_footer(text=f"Сервер {ctx.guild}", icon_url=ctx.guild.icon_url )
-
-            await member.send(embed=unMuteEmbed)
+            await member.send(embed=reply)
         except:
             pass
-    
+
+
+    @commands.command()
+    @commands.cooldown(1, 2, commands.BucketType.member)
+    async def mutes(self, ctx, page: IntConverter=1):
+        interval = 10
+        mutelist = MuteList(ctx.guild.id)
+        mutes = sorted(mutelist.mutes, key=lambda mm: mm.ends_at)
+        del mutelist
+
+        total_mutes = len(mutes)
+        if total_mutes == 0:
+            total_pages = 1
+        else:
+            total_pages = (total_mutes - 1) // interval +  1
+        
+        if not (0 < page <= total_pages):
+            page = total_pages
+        lowerb = (page - 1) * interval
+        upperb = min(page * interval, total_mutes)
+
+        reply = discord.Embed(color=discord.Color.blurple())
+        reply.title = "📑 | Список людей, находящихся в муте"
+        reply.set_footer(text=f"Стр. {page} / {total_pages}")
+        for i in range(lowerb, upperb):
+            mm = mutes[i]
+            member = ctx.guild.get_member(mm.id)
+            mod = ctx.guild.get_member(mm.mod_id)
+            reply.add_field(name=f"🔒 | {anf(member)}", value=(
+                f"> **Осталось:** {vis_delta(mm.time_remaining)}\n"
+                f"> **Модератор:** {anf(mod)}\n"
+                f"> **Причина:** {mm.reason}"
+            )[:256], inline=False)
+        if len(reply.fields) == 0:
+            reply.description = "Мутов нет, какие молодцы!"
+        await ctx.send(embed=reply)
+
+
     #----------------------------------------------+
     #                   Errors                     |
     #----------------------------------------------+

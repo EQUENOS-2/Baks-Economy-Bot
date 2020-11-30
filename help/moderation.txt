@@ -1,0 +1,15 @@
+`{p}clear` - очистка сообщений
+
+`{p}mute` - замутить пользователя
+`{p}unmute` - размутить пользователя
+`{p}mutes` - список мутов сервера
+
+`{p}ban` - *coming soon*
+`{p}tempban` - *coming soon*
+`{p}unban` - *coming soon*
+`{p}bans` - *coming soon*
+
+`{p}warn` - *coming soon*
+`{p}unwarn` - *coming soon*
+`{p}warns` - *coming soon*
+`{p}warned-users` - *coming soon*

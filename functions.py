@@ -1007,6 +1007,96 @@ class VConfig:
             upsert=True
         )
 
+# Moderation memory
+class MuteModel:
+    def __init__(self, server_id: int, member_id: int, data: dict=None):
+        self.server_id = server_id
+        self.id = member_id
+        if data is None:
+            # In case no data was given
+            collection = db["mutes"]
+            data = collection.find_one(
+                {"_id": self.server_id, f"mutes.{self.id}": {"$exists": True}},
+                projection={f"mutes.{self.id}": True}
+            )
+        self.ends_at = data.get("ends_at", datetime.utcnow()) # UTC
+        self.reason = data.get("reason")
+        if self.reason is None: self.reason = "Не указана"
+        self.mod_id = data.get("mod_id")
+    @property
+    def time_remaining(self):
+        now = datetime.utcnow()
+        return self.ends_at - now if self.ends_at > now else timedelta(seconds=0)
+    
+    def end(self):
+        collection = db["mutes"]
+        collection.update_one(
+            {"_id": self.server_id},
+            {"$unset": {f"mutes.{self.id}": ""}}
+        )
+
+
+class MuteList:
+    def __init__(self, server_id: int, projection: dict=None, data: dict=None, before: datetime=None):
+        self.id = server_id
+        if data is None:
+            collection = db["mutes"]
+            data = collection.find_one(
+                {"_id": self.id},
+                projection=projection
+            )
+        if before is None:
+            self.__mutes = data.get("mutes", {})
+        else:
+            self.__mutes = []
+            for _id_, d in data.get("mutes", {}).items():
+                mm = MuteModel(self.id, int(_id_), d)
+                if mm.ends_at <= before:
+                    self.__mutes.append(mm)
+    @property
+    def mutes(self):
+        if isinstance(self.__mutes, dict):
+            self.__mutes = [MuteModel(self.id, int(_id_), dat) for _id_, dat in self.__mutes.items()]
+        return self.__mutes
+    
+    def get(self, member_id: int):
+        if len(self.__mutes) < 1:
+            return None
+        if isinstance(self.__mutes, dict):
+            for _id_, dat in self.__mutes.items():
+                if int(_id_) == member_id:
+                    return MuteModel(self.id, int(_id_), dat)
+        else:
+            for mm in self.__mutes:
+                if mm.id == member_id:
+                    return mm
+    
+    def add(self, member_id: int, timedelta: timedelta, mod_id: int, reason: str=None):
+        payload = {
+            "ends_at": datetime.utcnow() + timedelta,
+            "mod_id": mod_id,
+            "reason": reason
+        }
+        collection = db["mutes"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$set": {f"mutes.{member_id}": payload}},
+            upsert=True
+        )
+
+    def remove(self, member_id: int):
+        collection = db["mutes"]
+        collection.update_one(
+            {"_id": self.id},
+            {"$unset": {f"mutes.{member_id}": ""}}
+        )
+
+
+def get_saved_mutes(before: datetime):
+    collection = db["mutes"]
+    results = collection.find({})
+    return [MuteList(r["_id"], data=r, before=before) for r in results]
+
 
 #-------------------------------------+
 #            Custom Checks            |
@@ -1076,6 +1166,17 @@ def vis_aliases(aliases):
         return ""
 
 
+def pick_wordform(number: int, all_forms: list):
+    """NOTE: all_forms = ["День" (один), "Дня" (два), "Дней" (пять)]"""
+    if 10 < number < 20:
+        return all_forms[2]
+    else:
+        number = number % 10
+        if number == 1: return all_forms[0]
+        elif 1 < number < 5: return all_forms[1]
+        else: return all_forms[2]
+
+
 def visual_delta(delta):
     if isinstance(delta, int):
         seconds = delta
@@ -1091,14 +1192,22 @@ def visual_delta(delta):
         "дн": t_days % 7,
         "нед": t_days // 7
     }
+    expwords = {
+        "сек": ["секунда", "секунды", "секунд"],
+        "мин": ["минута", "минуты", "минут"],
+        "ч": ["час", "часа", "часов"],
+        "дн": ["день", "дня", "дней"],
+        "нед": ["неделя", "недели", "недель"]
+    }
 
     out = ""
     for key in expanded_delta:
         num = expanded_delta[key]
         if num > 0:
-            out = f"{num} {key} " + out
+            word = pick_wordform(num, expwords[key])
+            out = f"{num} {word} " + out
     if out == "":
-        out = "0 сек"
+        out = "0.1 секунд"
     out.strip()
     return out
 
