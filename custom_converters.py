@@ -28,7 +28,7 @@ class TimedeltaConverter(Converter):
         if rest.isdigit():
             td = timedelta(minutes=int(rest))
         else:
-            tkeys = ["h", "m", "s"]
+            tkeys = ["d", "h", "m", "s"]
             raw_delta = {tk: 0 for tk in tkeys}
             for tk in tkeys:
                 pair = rest.split(tk, maxsplit=1)
@@ -39,7 +39,7 @@ class TimedeltaConverter(Converter):
                     if not value.isdigit():
                         raise BadTimedelta(argument)
                     raw_delta[tk] = int(value)
-            td = timedelta(hours=raw_delta["h"], minutes=raw_delta["m"], seconds=raw_delta["s"])
+            td = timedelta(days=raw_delta["d"], hours=raw_delta["h"], minutes=raw_delta["m"], seconds=raw_delta["s"])
         if td.total_seconds() > 0:
             return td
         raise BadTimedelta(argument)
