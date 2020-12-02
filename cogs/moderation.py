@@ -91,6 +91,19 @@ class moderation(commands.Cog):
             await asyncio.sleep(MST.next_in.total_seconds())
             MST.update()
 
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        mm = MuteModel(member.guild.id, member.id)
+        if mm.time_remaining > timedelta(seconds=0):
+            role = discord.utils.get(member.guild.roles, name=mute_role_name)
+            if role is not None and role not in member.roles:
+                try:
+                    await member.add_roles(role)
+                except:
+                    return
+    
+
     #----------------------------------------------+
     #                  Commands                    |
     #----------------------------------------------+
@@ -126,7 +139,7 @@ class moderation(commands.Cog):
         mutelist = MuteList(ctx.guild.id, data={})
         async with ctx.typing():
             try:
-                muteRole = await process_mute_role(ctx.guild, "Мут")
+                muteRole = await process_mute_role(ctx.guild, mute_role_name)
                 await member.add_roles(muteRole)
                 mutelist.add(member.id, time, ctx.author.id, reason)
                 await member.edit(mute=True)
@@ -136,19 +149,24 @@ class moderation(commands.Cog):
         if reason is None:
             reason = "Не указана"
 
-        tempMuteEmbed = discord.Embed(colour=0xFFA500, description=f"**Причина:** {reason}")
-        tempMuteEmbed.set_author(name=f" [🔇] {member} был замучен на {vis_delta(time)}")
-        tempMuteEmbed.set_footer(text= f"Выдал: {ctx.author}", icon_url = ctx.author.avatar_url )
+        reply = discord.Embed(colour=0xFFA500)
+        reply.description = (
+            f"**Длительность:** {vis_delta(time)}\n"
+            f"**Причина:** {reason}"
+        )
+        reply.set_author(name=f" [🔇] {member} был замучен.")
+        reply.set_footer(text= f"Выдал: {ctx.author}", icon_url = ctx.author.avatar_url )
 
-        await ctx.send(embed=tempMuteEmbed)
+        await ctx.send(embed=reply)
 
-        tempMuteDM = discord.Embed(color=0x2b2b2b, description=f"**[🔇]** Вы были замучены на сервере.")
-        tempMuteDM.set_thumbnail(url=f"{ctx.guild.icon_url}"), tempMuteDM.set_footer(text=f"Модератор: {ctx.author}", icon_url=ctx.author.avatar_url )
-        tempMuteDM.add_field(name="Причина:", value=f"{reason}")
-        tempMuteDM.add_field(name="Продолжительность:", value=vis_delta(time))
+        notif = discord.Embed(color=0x2b2b2b, description=f"**[🔇]** Вы были замучены на сервере.")
+        notif.set_thumbnail(url=f"{ctx.guild.icon_url}")
+        notif.set_footer(text=f"Модератор: {ctx.author}", icon_url=ctx.author.avatar_url )
+        notif.add_field(name="Причина:", value=f"{reason}")
+        notif.add_field(name="Продолжительность:", value=vis_delta(time))
 
         try:
-            await member.send(embed=tempMuteDM)
+            await member.send(embed=notif)
         except:
             pass
         # Mute length classification
@@ -160,11 +178,13 @@ class moderation(commands.Cog):
                 mutelist.remove(member.id)
                 await member.remove_roles(muteRole)
                 await member.edit(mute=False)
+            except:
+                pass
 
-                unMuteEmbed = discord.Embed(color=0x2b2b2b, description="Время мута истекло, Вы были размучены.")
-                unMuteEmbed.set_footer(text=f"Сервер {ctx.guild}", icon_url=ctx.guild.icon_url )
-
-                await member.send(embed=unMuteEmbed)
+            notif = discord.Embed(color=0x2b2b2b, description="Время мута истекло, Вы были размучены.")
+            notif.set_footer(text=f"Сервер {ctx.guild}", icon_url=ctx.guild.icon_url )
+            try:
+                await member.send(embed=notif)
             except:
                 pass
     
