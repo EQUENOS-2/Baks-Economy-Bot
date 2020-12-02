@@ -117,17 +117,6 @@ async def get_message(channel, msg_id):
         return None
 
 
-async def try_send_and_count(channel_or_user, message_id, content=None, embed=None, files=None):
-    try:
-        await channel_or_user.send(content=content, embed=embed, files=files)
-    except Exception:
-        global mass_dm_errors
-        if message_id not in mass_dm_errors:
-            mass_dm_errors[message_id] = 1
-        else:
-            mass_dm_errors[message_id] += 1
-
-
 class Welcome_card:
     def __init__(self, member):
         self.name = str(member)
@@ -256,58 +245,6 @@ class utilities(commands.Cog):
     #----------------------------------------------+
     #                  Commands                    |
     #----------------------------------------------+
-    @commands.cooldown(1, 5, commands.BucketType.member)
-    @commands.check_any(
-        commands.has_permissions(administrator=True),
-        is_moderator() )
-    @commands.command(
-        aliases=["dm-role", "mass-send", "role-dm", "dr"],
-        description="рассылает сообщения в ЛС обладателям конкретной роли",
-        usage="@Роль Текст",
-        brief="@Member Выпущен новый свод правил" )
-    async def dm_role(self, ctx, role: discord.Role, *, text):
-        atts = ctx.message.attachments
-
-        paper = f"📢 **{ctx.guild.name}**\n\n{text}"[:2000]
-        _files = [await att.to_file() for att in atts]
-
-        total_targets = 0
-        errors = 0
-        progbar = await ctx.send(f"🕑 Идёт рассылка...\nВыслал уже нескольким пользователям...")
-        for member in ctx.guild.members:
-            if role in member.roles:
-                total_targets += 1
-                #self.client.loop.create_task(try_send_and_count(member, ctx.message.id, paper, files=_files))
-                try:
-                    await member.send(paper, files=_files)
-                except Exception:
-                    errors += 1
-                if total_targets % 50 == 0:
-                    try:
-                        await progbar.edit(content=f"🕑 Идёт рассылка...\nВыслал уже {total_targets}+ пользователям...")
-                    except Exception:
-                        pass
-        
-        # await ctx.send("🕑 Собираю данные...")
-
-        # global mass_dm_errors
-        # error_targets = mass_dm_errors.get(ctx.message.id, 0)
-        # if ctx.message.id in mass_dm_errors:
-        #     mass_dm_errors.pop(ctx.message.id)
-
-        reply = discord.Embed(
-            title="✅ Рассылка завершена",
-            description=(
-                f"**Получатели:** обладатели роли <@&{role.id}>\n"
-                f"**Всего:** {total_targets}\n"
-                f"**Получили:** {total_targets - errors}\n"
-            ),
-            color=discord.Color.dark_green()
-        )
-        reply.set_footer(text=str(ctx.author), icon_url=ctx.author.avatar_url)
-        await ctx.send(embed=reply)
-
-
     @commands.cooldown(1, 1, commands.BucketType.member)
     @commands.check_any(
         commands.has_permissions(administrator=True),

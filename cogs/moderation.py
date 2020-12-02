@@ -147,9 +147,8 @@ class moderation(commands.Cog):
         tempMuteDM.add_field(name="Причина:", value=f"{reason}")
         tempMuteDM.add_field(name="Продолжительность:", value=vis_delta(time))
 
-        userToDM = self.client.get_user(member.id)
         try:
-            await userToDM.send(embed=tempMuteDM)
+            await member.send(embed=tempMuteDM)
         except:
             pass
         # Mute length classification
