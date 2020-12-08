@@ -92,7 +92,7 @@ async def help(ctx, *, section=None):
     p = ctx.prefix
     sections = {
         "settings": ["настройки"],
-        #"moderation": ["модерация"],
+        "moderation": ["модерация"],
         "economy": ["экономика"],
         #"games": ["игры", "казино"],
         "forms": ["формы", "анкеты"],
@@ -102,7 +102,7 @@ async def help(ctx, *, section=None):
     }
     titles = {
         "settings": "О настройках",
-        #"moderation": "О модерации",
+        "moderation": "О модерации",
         "economy": "Об экономике",
         #"games": "Об играх",
         "forms": "Об анкете сервера",
@@ -285,7 +285,7 @@ async def on_command_error(ctx, error):
             pass
 
     else:
-        print(error)
+        raise error#print(error)
 
 #========== Extensions =========
 

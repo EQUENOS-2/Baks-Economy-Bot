@@ -1,12 +1,13 @@
 import discord
 from discord.ext import commands
-from discord.ext.commands import Bot
-import failures
-import asyncio, os, datetime, json
-
-from functions import detect, get_field, try_int, has_permissions, ServerConfig, is_moderator
-
+import os, json
 from pymongo import MongoClient
+
+
+from functions import get_field, is_moderator
+from db_models import ServerConfig
+
+
 app_string = str(os.environ.get('cluster_string'))
 cluster = MongoClient(app_string)
 db = cluster["guilds"]

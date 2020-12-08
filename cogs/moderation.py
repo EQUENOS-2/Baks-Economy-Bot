@@ -1,14 +1,15 @@
 import discord
 from discord.ext import commands
-from discord.ext.commands import Bot
 import asyncio
 from datetime import datetime, timedelta
 
 #----------------------------------------------+
 #                 Functions                    |
 #----------------------------------------------+
-from functions import is_moderator, visual_delta as vis_delta, MuteList, MuteModel, get_saved_mutes, antiformat as anf, rus_timestamp
+from functions import is_moderator, visual_delta as vis_delta, antiformat as anf
+from  db_models import MuteList, MuteModel, get_saved_mutes
 from custom_converters import TimedeltaConverter, IntConverter
+
 
 class MuteSliceTimer:
     def __init__(self):
@@ -24,6 +25,7 @@ class MuteSliceTimer:
         self.last_at = datetime.utcnow()
 MST = MuteSliceTimer()
 mute_role_name = "Мут"
+
 
 async def process_mute_role(server, name):
     role = discord.utils.get(server.roles, name=name)

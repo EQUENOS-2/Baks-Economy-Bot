@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
-from discord.ext.commands import Bot
-import asyncio, os, datetime, random
+import asyncio, random
 
 #----------------------------------------------+
 #                 Constants                    |
@@ -50,8 +49,8 @@ work_replies = [
 #----------------------------------------------+
 #                 Functions                    |
 #----------------------------------------------+
-from functions import detect, get_field, try_int, is_moderator, find_alias, antiformat as anf, carve_cmd
-from functions import CustomerList, Customer, ItemStorage, Item, Case
+from functions import is_moderator, find_alias, antiformat as anf, carve_cmd
+from db_models import CustomerList, Customer, ItemStorage
 from custom_converters import IntConverter
 
 

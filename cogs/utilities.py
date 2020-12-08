@@ -1,13 +1,13 @@
+from custom_converters import IntConverter
 import discord
 from discord.ext import commands
-from discord.ext.commands import Bot
 import asyncio, os
 import requests
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
-from datetime import datetime, timedelta
-
 from pymongo import MongoClient
+
+
 app_string = str(os.environ.get('cluster_string'))
 cluster = None; att = 2
 while cluster is None:
@@ -31,7 +31,8 @@ reaction_add_timers = {}
 #----------------------------------------------+
 #                  Functions                   |
 #----------------------------------------------+
-from functions import detect, quote_list, antiformat, is_moderator, ReactionRolesConfig
+from functions import antiformat, is_moderator
+from db_models import ReactionRolesConfig, EventList, EventUser
 
 
 def unwrap_isolation(text, s):
@@ -524,6 +525,109 @@ class utilities(commands.Cog):
         await ctx.send(str(ctx.author.mention), embed=wemb, file=discord.File(wc.generate(), "welcome.png"))
 
 
+    @commands.cooldown(1, 2, commands.BucketType.member)
+    @commands.command(aliases=["event-bal", "nybal"])
+    async def event_bal(self, ctx, *, member: discord.Member=None):
+        if member is None: member = ctx.author
+        euser = EventUser(ctx.guild.id, member.id)
+        reply = discord.Embed(color=discord.Color.green())
+        reply.title = f"🎄 | Баланс {antiformat(member)}"
+        reply.description = f"**{euser.balance}** ❄"
+        reply.set_thumbnail(url=member.avatar_url)
+        await ctx.send(embed=reply)
+
+
+    @commands.cooldown(1, 2, commands.BucketType.member)
+    @commands.command(aliases=["event-top", "nytop"])
+    async def event_top(self, ctx, page: IntConverter=1):
+        interval = 10
+        eusers = sorted(EventList(ctx.guild.id).users, key=lambda u: u.balance, reverse=True)
+        user_count = len(eusers)
+        if user_count == 0: total_pages = 1
+        else: total_pages = (user_count - 1) // interval + 1
+        if not (0 < page <= total_pages): page = total_pages
+        lowerb = (page - 1) * interval
+        upperb = min(page * interval, user_count)
+        desc = ""
+        for i in range(lowerb, upperb):
+            euser = eusers[i]
+            member = ctx.guild.get_member(euser.id)
+            desc += f"`{i + 1}.` {antiformat(member)} `|` **{euser.balance}** ❄\n"
+        reply = discord.Embed(color=discord.Color.green())
+        reply.title = "🎄 | Участники с самым новогодним настроением"
+        reply.description = desc
+        reply.set_footer(text=f"{ctx.author} | Стр. {page}/{total_pages}", icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
+
+
+    @commands.cooldown(1, 2, commands.BucketType.member)
+    @commands.check_any(
+        commands.has_permissions(administrator=True),
+        is_moderator() )
+    @commands.command(
+        aliases=["change-snow", "snow"],
+        description="изменяет количество снежинок участника.",
+        usage="Число Участник",
+        brief="5 @User#1234"
+    )
+    async def change_snow(self, ctx, amount: IntConverter, *, member: discord.Member=None):
+        if member is None: member = ctx.author
+        EventUser(ctx.guild.id, member.id).change_bal(amount)
+        if amount > 0: changes = f"+{amount}"
+        else: changes = str(amount)
+        reply = discord.Embed(color=discord.Color.blue())
+        reply.title = ":snowflake: | Снежинки"
+        reply.description = f"Количество снежинок у **{antiformat(member)}** изменено на **{changes}** ❄"
+        reply.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
     
+
+    @commands.cooldown(1, 2, commands.BucketType.member)
+    @commands.check_any(
+        commands.has_permissions(administrator=True),
+        is_moderator() )
+    @commands.command(aliases=["reset-snow"])
+    async def reset_snow(self, ctx):
+        reply = discord.Embed()
+        reply.title = ":snowflake: | Обнуление снежинок"
+        reply.description = (
+            "Вы собираетесь обнулить снежинки абсолютно всем участникам сервера.\n"
+            "Продолжить? Напишите `да` или `нет`"
+        )
+        reply.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=reply)
+
+        yes = ["yes", "да", "y"]
+        no = ["no", "нет", "n"]
+        def check(msg):
+            if msg.author.id != ctx.author.id or msg.channel.id != ctx.channel.id:
+                return False
+            if msg.content.lower() in [*yes, *no]:
+                return True
+            return False
+        goon = False
+        try:
+            msg = await self.client.wait_for("message", check=check, timeout=60)
+        except asyncio.TimeoutError:
+            pass
+        else:
+            if msg.content.lower() in yes:
+                goon = True
+        
+        if not goon:
+            reply = discord.Embed()
+            reply.title = "❌ | Отмена"
+            reply.description = "Обнуление отменено"
+            reply.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar_url)
+            await ctx.send(embed=reply)
+        else:
+            EventList(ctx.guild.id, {"_id": True}).reset()
+            reply = discord.Embed(color=discord.Color.blue())
+            reply.title = ":snowflake: | Обнуление"
+            reply.description = "Всё. Теперь у всех 0 снежинок."
+            reply.set_footer(text=f"{ctx.author}", icon_url=ctx.author.avatar_url)
+            await ctx.send(embed=reply)
+
+
 def setup(client):
     client.add_cog(utilities(client))

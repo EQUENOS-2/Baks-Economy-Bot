@@ -1,7 +1,5 @@
 import discord
 from discord.ext import commands
-from discord.ext.commands import Bot
-import asyncio
 from pymongo import MongoClient
 import os, random
 
@@ -12,7 +10,8 @@ db = cluster["tournament_tool_db"]
 #----------------------------------------------+
 #                 Functions                    |
 #----------------------------------------------+
-from functions import VoiceButton, VConfig, TemporaryVoices, antiformat as anf
+from functions import antiformat as anf
+from db_models import VConfig, TemporaryVoices
 from custom_converters import IntConverter
 
 
@@ -90,17 +89,12 @@ class voices(commands.Cog):
                         await member.move_to(room)
                         # Also checking the queue and moving people
                         waiting_rooms = [vc for vc in category.voice_channels if check2(vc)]
-                        broke = False
                         for wr in waiting_rooms:
-                            if not broke:
-                                for waiter in wr.members:
-                                    if len(room.members) >= room.user_limit:
-                                        broke = True
-                                        break
-                                    else:
-                                        await waiter.move_to(room)
-                            else:
-                                break
+                            for waiter in wr.members:
+                                if len(room.members) >= room.user_limit:
+                                    return  # escapes function
+                                else:
+                                    await waiter.move_to(room)
                         del waiting_rooms
                     except:
                         pass
